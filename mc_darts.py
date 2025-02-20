@@ -34,12 +34,12 @@ class Cell(nn.Module):
         super(Cell, self).__init__()
         self._ops = nn.ModuleList()
         self._indices = []
-        
+
         # Get cell configuration from search space
         cell_config = SEARCH_SPACE.get_cell_config(cell_type)
         n_nodes = cell_config.get('n_nodes', 6)
         n_inputs = cell_config.get('n_inputs', 2)
-        
+
         # Get operations specific to this cell type
         op_names = SEARCH_SPACE.get_operations(cell_type)
 
@@ -53,6 +53,8 @@ class Cell(nn.Module):
     def forward(self, inputs, weights):
         states = [inputs[0], inputs[1]]
         offset = 0
+        print(f"Debug: Number of operations: {len(self._ops)}")
+        print(f"Debug: Weights shape: {weights.shape}")
         for i in range(len(self._indices) // len(states)):
             s = sum(self._ops[offset + j](h, weights[offset + j])
                    for j, h in enumerate(states))
