@@ -10,9 +10,14 @@ from operations import OPS
 from phylum import SEARCH_SPACE
 import logging
 
+# Clear the log file by opening it in write mode
+with open('error-file.log', 'w'):
+    pass
+
 # Configure logging
 logging.basicConfig(filename='error-file.log', level=logging.ERROR,
                     format='%(asctime)s %(levelname)s %(message)s')
+
 
 # Set device for CUDA
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
