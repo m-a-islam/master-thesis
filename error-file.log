@@ -1,9 +1,8 @@
+2025-02-20 23:14:49,370 ERROR An error occurred
 Traceback (most recent call last):
-  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 182, in <module>
-    main()
-  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 171, in main
+  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 188, in main
     train(model, train_loader, optimizer, criterion)
-  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 133, in train
+  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 149, in train
     outputs = model(images)
               ^^^^^^^^^^^^^
   File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
@@ -12,7 +11,7 @@ Traceback (most recent call last):
   File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
     return forward_call(*args, **kwargs)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 88, in forward
+  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 107, in forward
     x = cell([x, x], weights)
         ^^^^^^^^^^^^^^^^^^^^^
   File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
@@ -21,15 +20,34 @@ Traceback (most recent call last):
   File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
     return forward_call(*args, **kwargs)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 57, in forward
-    s = sum(self._ops[offset + j](h, weights[offset + j])
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 57, in <genexpr>
-    s = sum(self._ops[offset + j](h, weights[offset + j])
-            ~~~~~~~~~^^^^^^^^^^^^
-  File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/container.py", line 334, in __getitem__
-    return self._modules[self._get_abs_string_index(idx)]
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/container.py", line 316, in _get_abs_string_index
-    raise IndexError(f"index {idx} is out of range")
-IndexError: index 27 is out of range
+  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 72, in forward
+    s = sum(self._ops[offset + j](h, curr_weights[j])
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 72, in <genexpr>
+    s = sum(self._ops[offset + j](h, curr_weights[j])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 35, in forward
+    return sum(w * op(x) for w, op in zip(weights, self._ops))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 35, in <genexpr>
+    return sum(w * op(x) for w, op in zip(weights, self._ops))
+                   ^^^^^
+  File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/conv.py", line 554, in forward
+    return self._conv_forward(input, self.weight, self.bias)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/muis/.virtualenvs/master-thesis/lib/python3.12/site-packages/torch/nn/modules/conv.py", line 549, in _conv_forward
+    return F.conv2d(
+           ^^^^^^^^^
+RuntimeError: Given groups=1, weight of size [8, 8, 1, 1], expected input[64, 16, 28, 28] to have 8 channels, but got 16 channels instead

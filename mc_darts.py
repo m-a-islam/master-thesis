@@ -8,6 +8,11 @@ import torchvision.transforms as transforms
 from primitives import ALL_PRIMITIVES, PRIMITIVES
 from operations import OPS
 from phylum import SEARCH_SPACE
+import logging
+
+# Configure logging
+logging.basicConfig(filename='error-file.log', level=logging.ERROR,
+                    format='%(asctime)s %(levelname)s %(message)s')
 
 # Set device for CUDA
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -162,32 +167,35 @@ def evaluate(model, test_loader):
 
 # Main function (now using CUDA)
 def main():
-    print("🚀 Running MicroDARTS on", device)
-    print("📚 Using Search Space Configuration:")
-    print(f"Available CNN operations: {SEARCH_SPACE.get_operations('CNN')}")
-    print(f"Available MLP operations: {SEARCH_SPACE.get_operations('MLP')}")
-    print(f"Available Fusion operations: {SEARCH_SPACE.get_operations('Fusion')}")
-    
-    train_loader, test_loader = get_mnist_loader()
+    try:
+        print("🚀 Running MicroDARTS on", device)
+        print("📚 Using Search Space Configuration:")
+        print(f"Available CNN operations: {SEARCH_SPACE.get_operations('CNN')}")
+        print(f"Available MLP operations: {SEARCH_SPACE.get_operations('MLP')}")
+        print(f"Available Fusion operations: {SEARCH_SPACE.get_operations('Fusion')}")
 
-    # Initialize Model
-    model = MicroDARTS().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    criterion = nn.CrossEntropyLoss()
+        train_loader, test_loader = get_mnist_loader()
 
-    print("✅ Model Initialized. Starting Training...\n")
+        # Initialize Model
+        model = MicroDARTS().to(device)
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        criterion = nn.CrossEntropyLoss()
 
-    for epoch in range(5):
-        print(f"🔄 Epoch {epoch + 1}: Training...")
-        train(model, train_loader, optimizer, criterion)
-        acc = evaluate(model, test_loader)
-        print(f"🎯 Epoch {epoch + 1}: Test Accuracy = {acc:.2f}%\n")
+        print("✅ Model Initialized. Starting Training...\n")
 
-    best_architecture = [F.softmax(alpha, dim=0).argmax().item() for alpha in model.alpha_ops]
-    best_architecture = [idx if idx < len(PRIMITIVES) else len(PRIMITIVES) - 1 for idx in best_architecture]
+        for epoch in range(5):
+            print(f"🔄 Epoch {epoch + 1}: Training...")
+            train(model, train_loader, optimizer, criterion)
+            acc = evaluate(model, test_loader)
+            print(f"🎯 Epoch {epoch + 1}: Test Accuracy = {acc:.2f}%\n")
 
-    print("\n🔥 Best Architecture Found:", [PRIMITIVES[idx] for idx in best_architecture])
-    print("\n✅ Training Complete!")
+        best_architecture = [F.softmax(alpha, dim=0).argmax().item() for alpha in model.alpha_ops]
+        best_architecture = [idx if idx < len(PRIMITIVES) else len(PRIMITIVES) - 1 for idx in best_architecture]
+
+        print("\n🔥 Best Architecture Found:", [PRIMITIVES[idx] for idx in best_architecture])
+        print("\n✅ Training Complete!")
+    except Exception as e:
+        logging.error("An error occurred", exc_info=True)
 
 if __name__ == "__main__":
     main()
