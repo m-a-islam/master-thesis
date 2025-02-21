@@ -40,26 +40,25 @@ class Cell(nn.Module):
         self._ops = nn.ModuleList()
         self._indices = []
         
-        # Get cell configuration from search space
+        # Get cell configuration
         cell_config = SEARCH_SPACE.get_cell_config(cell_type)
-        self.n_nodes = cell_config.get('n_nodes', 4)  # Reduced from 6 to 4
+        self.n_nodes = cell_config.get('n_nodes', 4)
         self.n_inputs = cell_config.get('n_inputs', 2)
         
         # Get operations specific to this cell type
         op_names = SEARCH_SPACE.get_operations(cell_type)
-
-        # Calculate number of edges
-        num_edges = sum(self.n_inputs + i for i in range(self.n_nodes))
         
+        # Create mixed operations
         for i in range(self.n_nodes):
             for j in range(self.n_inputs + i):
                 stride = 2 if reduction and j < self.n_inputs else 1
-                op = MixedOp(C, stride, op_names).to(device)
+                # Ensure proper channel handling in MixedOp
+                op = MixedOp(C, stride, op_names)
                 self._ops.append(op)
                 self._indices.append(j)
 
     def forward(self, inputs, weights):
-        states = [inputs[0], inputs[1]]
+        states = list(inputs)  # Convert tuple to list if needed
         offset = 0
         
         # Ensure weights match the number of operations
@@ -69,39 +68,57 @@ class Cell(nn.Module):
             curr_states = states[:self.n_inputs + i]
             curr_weights = weights[offset:offset + len(curr_states)]
             
+            # Sum the weighted operations
             s = sum(self._ops[offset + j](h, curr_weights[j])
                    for j, h in enumerate(curr_states))
             
             offset += len(curr_states)
             states.append(s)
-            
+        
         return torch.cat(states[-2:], dim=1)
 
 class MicroDARTS(nn.Module):
-    def __init__(self, C=8, num_classes=10, layers=3):
+    def __init__(self, C=16, num_classes=10, layers=8):
         super(MicroDARTS, self).__init__()
         self.layers = layers
-        self.stem = nn.Conv2d(1, C, 3, stride=1, padding=1, bias=False)
+        
+        # Read configuration from search space
+        config = SEARCH_SPACE.get_cell_config('CNN')
+        channels = config['channels']
+        C_curr = channels['initial']  # Starting with 16 channels
+        
+        # Initial stem convolution
+        self.stem = nn.Sequential(
+            nn.Conv2d(1, C_curr, 3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(C_curr)
+        )
 
+        # Create cells with proper channel handling
         self.cells = nn.ModuleList()
+        reduction_cells = config.get('reduction_cells', [])
+        C_prev = C_curr
+        
         for i in range(layers):
-            reduction = (i % 2 == 1)
-            cell = Cell(C, reduction)
+            reduction = i in reduction_cells
+            if reduction:
+                C_curr *= channels['increment']  # Double channels after reduction
+                
+            cell = Cell(C_prev, reduction, cell_type='CNN')
             self.cells.append(cell)
             
             # Initialize alphas for each cell
             num_ops = len(cell._ops)
             self.register_parameter(f'alpha_{i}', nn.Parameter(torch.randn(num_ops)))
             
-            if reduction:
-                C *= 2
+            C_prev = C_curr  # Update channel count for next cell
 
+        # Global pooling and classifier
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(C, num_classes).to(device)
+        self.classifier = nn.Linear(C_curr, num_classes)
 
     def forward(self, x):
         x = self.stem(x)
-
+        
         for i, cell in enumerate(self.cells):
             weights = F.softmax(getattr(self, f'alpha_{i}'), dim=0)
             x = cell([x, x], weights)
