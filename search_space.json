@@ -1,59 +1,36 @@
 {
   "search_space": {
     "CNN_operations": [
+      "conv_1x1",
       "conv_3x3",
       "conv_5x5",
-      "conv_7x7",
-      "dilated_conv_3x3",
-      "depthwise_separable_conv_3x3",
-      "max_pool_3x3",
-      "avg_pool_3x3",
-      "identity",
-      "zero"
+      "max_pool_2x2",
+      "avg_pool_2x2",
+      "skip_connect"
     ],
     "MLP_operations": [
-      "linear_512",
-      "linear_1024",
-      "relu",
-      "sigmoid",
-      "tanh",
-      "batch_norm",
-      "dropout_0.5",
-      "identity"
+      "mlp",
+      "dropout",
+      "layer_norm",
+      "none"
     ],
     "Fusion_operations": [
-      "global_avg_pool",
-      "flatten",
-      "attention_fusion",
-      "concat_fusion"
+      "squeeze_excitation",
+      "conv_1x1",
+      "skip_connect"
     ],
     "cells": {
-      "CNN_Cell": {
-        "type": "spatial",
-        "nodes": [
-          {"id": 0, "input": ["prev_layer"], "operation": "conv_3x3"},
-          {"id": 1, "input": ["prev_layer"], "operation": "conv_5x5"},
-          {"id": 2, "input": ["0", "1"], "operation": "identity"},
-          {"id": 3, "input": ["2"], "operation": "max_pool_3x3"}
-        ]
+      "CNN": {
+        "n_nodes": 6,
+        "n_inputs": 2
       },
-      "MLP_Cell": {
-        "type": "fully_connected",
-        "nodes": [
-          {"id": 0, "input": ["prev_layer"], "operation": "linear_512"},
-          {"id": 1, "input": ["0"], "operation": "relu"},
-          {"id": 2, "input": ["1"], "operation": "dropout_0.5"},
-          {"id": 3, "input": ["2"], "operation": "linear_1024"}
-        ]
+      "MLP": {
+        "n_nodes": 4,
+        "n_inputs": 1
       },
-      "Fusion_Cell": {
-        "type": "fusion",
-        "nodes": [
-          {"id": 0, "input": ["CNN_Cell"], "operation": "global_avg_pool"},
-          {"id": 1, "input": ["0"], "operation": "flatten"},
-          {"id": 2, "input": ["1", "MLP_Cell"], "operation": "concat_fusion"},
-          {"id": 3, "input": ["2"], "operation": "linear_512"}
-        ]
+      "Fusion": {
+        "n_nodes": 3,
+        "n_inputs": 2
       }
     }
   }

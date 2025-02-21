@@ -2,108 +2,62 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import torchvision, os
+import torchvision
+import os
 import torchvision.transforms as transforms
+from primitives import ALL_PRIMITIVES, PRIMITIVES
+from operations import OPS
+from phylum import SEARCH_SPACE
 
-# Set device for CUDA (Use GPU if available)
+# Set device for CUDA
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"🚀 Using device: {device}")
-## todo change the search space for fusion and mlp, cnn separately
-# Define the search space
-PRIMITIVES = [
-    'none',                      # No connection
-    'skip_connect',              # Identity (ResNet-style skip)
-    'max_pool_2x2',              # Max Pooling (Downsampling)
-    'avg_pool_2x2',              # Average Pooling
-    'conv_1x1',                  # Pointwise Convolution
-    'conv_3x3',                  # Standard 3x3 Convolution
-    'depthwise_conv_3x3',        # Depthwise Separable Conv
-    'dilated_conv_3x3',          # Dilated Convolution
-    'grouped_conv_3x3',          # Grouped Convolution
-    'conv_5x5',                  # Larger 5x5 Convolution
-    'conv_7x7',                  # Very Large 7x7 Convolution
-    'mlp',                       # Fully Connected MLP
-    'squeeze_excitation',        # SE Layer for Attention
-    'batch_norm',                # Batch Normalization Only
-    'layer_norm',                # Layer Normalization
-    'dropout'                    # Dropout Layer for Regularization
-]
-
-## todo change the Opearation according to the seach space
-# Define Operations Dictionary
-OPS = {
-    'none': lambda C, stride: nn.Identity(),
-    'skip_connect': lambda C, stride: nn.Identity() if stride == 1 else nn.Conv2d(C, C, 1, stride=stride),
-    'max_pool_2x2': lambda C, stride: nn.MaxPool2d(2, stride=stride),
-    'avg_pool_2x2': lambda C, stride: nn.AvgPool2d(2, stride=stride),
-    'conv_1x1': lambda C, stride: nn.Conv2d(C, C, 1, stride=stride, padding=0, bias=False),
-    'conv_3x3': lambda C, stride: nn.Conv2d(C, C, 3, stride=stride, padding=1, bias=False),
-    'depthwise_conv_3x3': lambda C, stride: nn.Conv2d(C, C, 3, stride=stride, padding=1, groups=C, bias=False),
-    'dilated_conv_3x3': lambda C, stride: nn.Conv2d(C, C, 3, stride=stride, padding=2, dilation=2, bias=False),
-    'grouped_conv_3x3': lambda C, stride: nn.Conv2d(C, C, 3, stride=stride, padding=1, groups=2, bias=False),
-    'conv_5x5': lambda C, stride: nn.Conv2d(C, C, 5, stride=stride, padding=2, bias=False),
-    'conv_7x7': lambda C, stride: nn.Conv2d(C, C, 7, stride=stride, padding=3, bias=False),
-    'mlp': lambda C, stride: nn.Sequential(
-        nn.Flatten(),
-        nn.Linear(C * 4 * 4, C),
-        nn.ReLU(),
-        nn.Linear(C, C)
-    ),
-    'squeeze_excitation': lambda C, stride: nn.Sequential(
-        nn.AdaptiveAvgPool2d(1),
-        nn.Conv2d(C, C // 16, 1),
-        nn.ReLU(),
-        nn.Conv2d(C // 16, C, 1),
-        nn.Sigmoid()
-    ),
-    'batch_norm': lambda C, stride: nn.BatchNorm2d(C),
-    'layer_norm': lambda C, stride: nn.LayerNorm([C, 28, 28]),
-    'dropout': lambda C, stride: nn.Dropout(p=0.3)
-}
 
 class MixedOp(nn.Module):
-    def __init__(self, C, stride):
+    def __init__(self, C, stride, op_names=None):
         super(MixedOp, self).__init__()
         self._ops = nn.ModuleList()
-
-        for primitive in PRIMITIVES:
-            op = OPS[primitive](C, stride).to(device)  # Move operations to GPU
+        
+        # Use provided op_names or default to ALL_PRIMITIVES
+        primitives = op_names if op_names else ALL_PRIMITIVES
+        
+        for primitive in primitives:
+            op = OPS[primitive](C, stride).to(device)
             self._ops.append(op)
 
     def forward(self, x, weights):
-        """
-        Ensure weights is correctly applied to operations.
-        """
-        weights = weights.view(-1)  # Ensure weights is a 1D vector
+        weights = weights.view(-1)
         return sum(w * op(x) for w, op in zip(weights, self._ops))
 
-## todo update cell for multiple types of search space
 class Cell(nn.Module):
-    def __init__(self, C, reduction):
+    def __init__(self, C, reduction, cell_type='CNN'):
         super(Cell, self).__init__()
         self._ops = nn.ModuleList()
         self._indices = []
+        
+        # Get cell configuration from search space
+        cell_config = SEARCH_SPACE.get_cell_config(cell_type)
+        n_nodes = cell_config.get('n_nodes', 6)
+        n_inputs = cell_config.get('n_inputs', 2)
+        
+        # Get operations specific to this cell type
+        op_names = SEARCH_SPACE.get_operations(cell_type)
 
-        for i in range(6):  # Increase nodes per cell
-            for j in range(3 + i):  # More connections per node
-                op = MixedOp(C, stride=2 if reduction else 1).to(device)
+        for i in range(n_nodes):
+            for j in range(n_inputs + i):
+                stride = 2 if reduction and j < n_inputs else 1
+                op = MixedOp(C, stride, op_names).to(device)
                 self._ops.append(op)
                 self._indices.append(j)
 
     def forward(self, inputs, weights):
         states = [inputs[0], inputs[1]]
-
-        new_states = []
-        op_index = 0
-        for i in range(6):  # Increase number of processed states
-            sum_result = 0
-            for j in range(3 + i):
-                if j < len(states):
-                    sum_result += self._ops[op_index](states[j], weights[op_index])
-                op_index += 1
-            new_states.append(sum_result)
-
-        states.extend(new_states)
+        offset = 0
+        for i in range(len(self._indices) // len(states)):
+            s = sum(self._ops[offset + j](h, weights[offset + j])
+                   for j, h in enumerate(states))
+            offset += len(states)
+            states.append(s)
         return torch.cat(states[-2:], dim=1)
 
 class MicroDARTS(nn.Module):
@@ -198,6 +152,11 @@ def evaluate(model, test_loader):
 # Main function (now using CUDA)
 def main():
     print("🚀 Running MicroDARTS on", device)
+    print("📚 Using Search Space Configuration:")
+    print(f"Available CNN operations: {SEARCH_SPACE.get_operations('CNN')}")
+    print(f"Available MLP operations: {SEARCH_SPACE.get_operations('MLP')}")
+    print(f"Available Fusion operations: {SEARCH_SPACE.get_operations('Fusion')}")
+    
     train_loader, test_loader = get_mnist_loader()
 
     # Initialize Model
