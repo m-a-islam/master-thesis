@@ -34,18 +34,21 @@ class Cell(nn.Module):
         super(Cell, self).__init__()
         self._ops = nn.ModuleList()
         self._indices = []
-
+        
         # Get cell configuration from search space
         cell_config = SEARCH_SPACE.get_cell_config(cell_type)
-        n_nodes = cell_config.get('n_nodes', 6)
-        n_inputs = cell_config.get('n_inputs', 2)
-
+        self.n_nodes = cell_config.get('n_nodes', 4)  # Reduced from 6 to 4
+        self.n_inputs = cell_config.get('n_inputs', 2)
+        
         # Get operations specific to this cell type
         op_names = SEARCH_SPACE.get_operations(cell_type)
 
-        for i in range(n_nodes):
-            for j in range(n_inputs + i):
-                stride = 2 if reduction and j < n_inputs else 1
+        # Calculate number of edges
+        num_edges = sum(self.n_inputs + i for i in range(self.n_nodes))
+        
+        for i in range(self.n_nodes):
+            for j in range(self.n_inputs + i):
+                stride = 2 if reduction and j < self.n_inputs else 1
                 op = MixedOp(C, stride, op_names).to(device)
                 self._ops.append(op)
                 self._indices.append(j)
@@ -53,13 +56,20 @@ class Cell(nn.Module):
     def forward(self, inputs, weights):
         states = [inputs[0], inputs[1]]
         offset = 0
-        print(f"Debug: Number of operations: {len(self._ops)}")
-        print(f"Debug: Weights shape: {weights.shape}")
-        for i in range(len(self._indices) // len(states)):
-            s = sum(self._ops[offset + j](h, weights[offset + j])
-                   for j, h in enumerate(states))
-            offset += len(states)
+        
+        # Ensure weights match the number of operations
+        assert len(self._ops) == len(weights), f"Mismatch between ops ({len(self._ops)}) and weights ({len(weights)})"
+        
+        for i in range(self.n_nodes):
+            curr_states = states[:self.n_inputs + i]
+            curr_weights = weights[offset:offset + len(curr_states)]
+            
+            s = sum(self._ops[offset + j](h, curr_weights[j])
+                   for j, h in enumerate(curr_states))
+            
+            offset += len(curr_states)
             states.append(s)
+            
         return torch.cat(states[-2:], dim=1)
 
 class MicroDARTS(nn.Module):
@@ -71,29 +81,28 @@ class MicroDARTS(nn.Module):
         self.cells = nn.ModuleList()
         for i in range(layers):
             reduction = (i % 2 == 1)
-            self.cells.append(Cell(C, reduction))
+            cell = Cell(C, reduction)
+            self.cells.append(cell)
+            
+            # Initialize alphas for each cell
+            num_ops = len(cell._ops)
+            self.register_parameter(f'alpha_{i}', nn.Parameter(torch.randn(num_ops)))
+            
             if reduction:
-                C *= 2  # Double the number of channels after each reduction
+                C *= 2
 
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(64, num_classes).to(device)  # Adjusted to match the actual input size
-
-        self.alpha_ops = nn.ParameterList([
-            nn.Parameter(torch.randn(len(self.cells[i]._ops))) for i in range(layers)
-        ])
+        self.classifier = nn.Linear(C, num_classes).to(device)
 
     def forward(self, x):
         x = self.stem(x)
 
         for i, cell in enumerate(self.cells):
-            weights = F.softmax(self.alpha_ops[i], dim=0)
+            weights = F.softmax(getattr(self, f'alpha_{i}'), dim=0)
             x = cell([x, x], weights)
 
         x = self.global_pooling(x)
-        x = x.view(x.size(0), -1)  # Flatten
-
-        #print(f"🔍 Debug: Final feature vector shape before classifier: {x.shape}")  # Debugging
-
+        x = x.view(x.size(0), -1)
         return self.classifier(x)
 
 # Optimized Data Loader for GPU

@@ -4,34 +4,76 @@
       "conv_1x1",
       "conv_3x3",
       "conv_5x5",
+      "conv_7x7",
       "max_pool_2x2",
       "avg_pool_2x2",
-      "skip_connect"
+      "skip_connect",
+      "depthwise_conv_3x3",
+      "dilated_conv_3x3",
+      "grouped_conv_3x3",
+      "batch_norm"
     ],
     "MLP_operations": [
       "mlp",
       "dropout",
       "layer_norm",
-      "none"
+      "none",
+      "skip_connect"
     ],
     "Fusion_operations": [
       "squeeze_excitation",
       "conv_1x1",
-      "skip_connect"
+      "skip_connect",
+      "batch_norm",
+      "layer_norm"
     ],
     "cells": {
       "CNN": {
-        "n_nodes": 6,
-        "n_inputs": 2
+        "n_nodes": 4,
+        "n_inputs": 2,
+        "reduction_cells": [1, 3],
+        "channels": {
+          "initial": 16,
+          "increment": 2
+        },
+        "dropout_rate": 0.3
       },
       "MLP": {
-        "n_nodes": 4,
-        "n_inputs": 1
+        "n_nodes": 3,
+        "n_inputs": 1,
+        "hidden_sizes": [64, 128, 256],
+        "dropout_rate": 0.5,
+        "activation": "relu"
       },
       "Fusion": {
-        "n_nodes": 3,
-        "n_inputs": 2
+        "n_nodes": 2,
+        "n_inputs": 2,
+        "fusion_type": "concat",
+        "squeeze_ratio": 16
       }
+    },
+    "training": {
+      "batch_size": 64,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0003,
+      "epochs": {
+        "search": 50,
+        "train": 100
+      },
+      "scheduler": {
+        "type": "cosine",
+        "min_lr": 0.0001,
+        "warmup_epochs": 5
+      }
+    },
+    "architecture": {
+      "init_channels": 16,
+      "layers": 8,
+      "auxiliary": {
+        "enabled": true,
+        "weight": 0.4
+      },
+      "drop_path_prob": 0.2
     }
   }
 }
