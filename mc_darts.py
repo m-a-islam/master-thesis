@@ -209,8 +209,10 @@ def main():
             best_architecture_ops = []
             for idx in best_architecture:
                 if idx < len(cnn_ops):
+                    print(f"{cnn_ops[idx]} is out of range for ops")
                     best_architecture_ops.append(cnn_ops[idx])
                 else:
+                    print(f"{idx} is out of range for ops")
                     best_architecture_ops.append("Invalid Index")
             print("\n🔥 Best Architecture Found:", best_architecture_ops)
         except Exception as e:
