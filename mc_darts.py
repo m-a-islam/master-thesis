@@ -202,10 +202,19 @@ def main():
             acc = evaluate(model, test_loader)
             print(f"🎯 Epoch {epoch + 1}: Test Accuracy = {acc:.2f}%\n")
 
-        best_architecture = [F.softmax(getattr(model, f'alpha_{i}'), dim=0).argmax().item() for i in
-                             range(model.layers)]
-        cnn_ops = SEARCH_SPACE.get_operations('CNN')
-        print("\n🔥 Best Architecture Found:", [cnn_ops[idx] for idx in best_architecture])
+        try:
+            best_architecture = [F.softmax(getattr(model, f'alpha_{i}'), dim=0).argmax().item() for i in
+                                 range(model.layers)]
+            cnn_ops = SEARCH_SPACE.get_operations('CNN')
+            best_architecture_ops = []
+            for idx in best_architecture:
+                if idx < len(cnn_ops):
+                    best_architecture_ops.append(cnn_ops[idx])
+                else:
+                    best_architecture_ops.append("Invalid Index")
+            print("\n🔥 Best Architecture Found:", best_architecture_ops)
+        except Exception as e:
+            logging.error("An error occurred", exc_info=True)
         print("\n✅ Training Complete!")
     except Exception as e:
         logging.error("An error occurred", exc_info=True)

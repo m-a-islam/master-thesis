@@ -1,6 +1,0 @@
-2025-02-23 19:18:18,558 ERROR An error occurred
-Traceback (most recent call last):
-  File "/home/muis/thesis/github-repo/master-thesis/mc_darts.py", line 208, in main
-    print("\n🔥 Best Architecture Found:", [cnn_ops[idx] for idx in best_architecture])
-                                            ~~~~~~~^^^^^
-IndexError: list index out of range
