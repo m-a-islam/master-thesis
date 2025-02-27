@@ -16,6 +16,7 @@ class Architect(object):
                                           lr=args.arch_learning_rate, betas=(0.5, 0.999),
                                           weight_decay=args.arch_weight_decay)
 
+    ## this function is responsible for bi-level optimization of alpha
     def _compute_unrolled_model(self, input, target, eta, network_optimizer):
         loss = self.model._loss(input, target)
         theta = _concat(self.model.parameters()).data
@@ -23,6 +24,8 @@ class Architect(object):
             moment = _concat(network_optimizer.state[v]['momentum_buffer'] for v in self.model.parameters()).mul_(self.network_momentum)
         except:
             moment = torch.zeros_like(theta)
+        # this step is responsible for calculating the gradient of the loss w.r.t. the model parameters
+        # which is known as architecture approximation
         dtheta = _concat(torch.autograd.grad(loss, self.model.parameters())).data + self.network_weight_decay * theta
         unrolled_model = self._construct_model_from_theta(theta.sub(eta, moment + dtheta))
         return unrolled_model

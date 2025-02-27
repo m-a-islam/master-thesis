@@ -266,14 +266,17 @@ def derive_genotype(model):
     reduce_concat = list(range(2, 2 + model._steps))
 
     for i, cell in enumerate(model.cells):
+        ## this step is Softmax Over Architecture Weights:
         weights = F.softmax(getattr(model, f'alpha_{i}'), dim=0)
         cell_ops = SEARCH_SPACE.get_operations(cell.cell_type)
         offset = 0
         for node in range(model._steps):
             curr_weights = weights[offset:offset + cell.n_inputs + node]
             if len(curr_weights) > 0:
+                ## this step is to select top 2 operations with highest weights
                 top2_indices = curr_weights.argsort(descending=True)[:min(2, len(curr_weights))]
                 for idx in top2_indices:
+                    ## Mapping to Operations: operation index is mapped to an actual operation from the search space.
                     op_idx = idx % len(cell_ops)
                     input_idx = idx // len(cell_ops)
                     op_name = cell_ops[op_idx]
@@ -282,7 +285,7 @@ def derive_genotype(model):
                     else:
                         normal.append((op_name, input_idx))
             offset += cell.n_inputs + node
-
+    ## Architecture Finalization(discreatize): The final architecture is derived by concatenating the operations and the input indices.
     return Genotype(normal=normal[:8], normal_concat=normal_concat, reduce=reduce[:8], reduce_concat=reduce_concat)
 
 def main():
