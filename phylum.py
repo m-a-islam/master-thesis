@@ -15,13 +15,10 @@ class SearchSpace:
         self.cells = self.config['cells']
     
     def get_operations(self, cell_type: str) -> List[str]:
-        """Get available operations for a specific cell type."""
         return self.primitives.get(cell_type, [])
     
     def get_cell_config(self, cell_type: str) -> Dict:
-        """Get cell configuration for a specific cell type."""
         return self.cells.get(cell_type, {})
 
-# Create global instance
 SEARCH_SPACE = SearchSpace()
 PRIMITIVES = SEARCH_SPACE.primitives
