@@ -1,5 +1,9 @@
 # master-thesis
-
+to run this project need to install pytorch and torchvision
+To run the project, run the following command in the terminal:
+```
+python mc_darts.py
+```
 
 
 ## Getting started

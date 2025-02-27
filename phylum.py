@@ -1,11 +1,24 @@
 import json
+from typing import Dict, List
 
-# Load search space from JSON file
-with open('search_space.json', 'r') as f:
-    search_space = json.load(f)['search_space']
+class SearchSpace:
+    def __init__(self, config_path: str = 'search_space.json'):
+        with open(config_path, 'r') as f:
+            self.config = json.load(f)['search_space']
+        
+        self.primitives = {
+            'CNN': self.config['CNN_operations'],
+            'MLP': self.config['MLP_operations'],
+            'Fusion': self.config['Fusion_operations']
+        }
+        
+        self.cells = self.config['cells']
+    
+    def get_operations(self, cell_type: str) -> List[str]:
+        return self.primitives.get(cell_type, [])
+    
+    def get_cell_config(self, cell_type: str) -> Dict:
+        return self.cells.get(cell_type, {})
 
-PRIMITIVES = {
-    'CNN': search_space['CNN_operations'],
-    'MLP': search_space['MLP_operations'],
-    'Fusion': search_space['Fusion_operations']
-}
+SEARCH_SPACE = SearchSpace()
+PRIMITIVES = SEARCH_SPACE.primitives
