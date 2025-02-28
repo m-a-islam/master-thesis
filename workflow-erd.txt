@@ -1,0 +1,76 @@
++-------------------+         +-------------------+
+|    phylum.py      |-------->|   search_space    |
+| (Config Loader)   |         |   .json           |
++-------------------+         +-------------------+
+| - SEARCH_SPACE    |         | - CNN_operations  | None
++-------------------+         | - MLP_operations  |
+       |                      | - Fusion_ops      |
+       v                      +-------------------+
++-------------------+         +-------------------+
+|   primitives.py   |-------->|  operations.py    |
+| (Op Fallback)     |         | (Op Definitions)  |
++-------------------+         +-------------------+
+| - ALL_PRIMITIVES  |         | - OPS Dictionary  | None
++-------------------+         +-------------------+
+       |                             |
+       v                             v
++-------------------+         +-------------------+
+|   genotypes.py    |-------->|   MicroDARTS      |
+| (Genotype Defs)   |         | (Supernet Model)  |
++-------------------+         +-------------------+
+| - Genotype        |         | - stem            | Eq. 1: ō^(i,j)(x) = Σ α_o^(i,j) · o(x)
+| - NASNet, etc.    |-------->| - cells (Cell)    | Eq. 2: s_i = Σ_j<i ō^(j,i)(s_j)
++-------------------+         | - classifier      |
+       |                      +-------------------+
+       |                             |
+       v                             v
++-------------------+         +-------------------+
+| mc_darts.py       |-------->|     Cell          |
+| (Main Script)     |         | (DAG Component)   |
++-------------------+         +-------------------+
+| - main            |         | - preprocess      | Eq. 2: s_i = Σ_j<i ō^(j,i)(s_j)
++-------------------+         | - _ops (MixedOp)  |
+       |                      +-------------------+
+       v                             |
++-------------------+         +-------------------+
+| get_mnist_loader  |-------->|    MixedOp        |
+| (Data Prep)       |         | (Op Mixer)        |
++-------------------+         +-------------------+
+| - train_loader    |         | - _ops            | Eq. 1: ō^(i,j)(x) = Σ α_o^(i,j) · o(x)
+| - valid_loader    |         +-------------------+
+| - test_loader     |                |
++-------------------+                |
+       |                             v
+       v                      +-------------------+
++-------------------+         |     train         |
+|    architect.py   |-------->| (Training Loop)   |
+| (Alpha Optimizer) |         +-------------------+
+| - Architect       |         | - model(images)   | Eq. 3: min_α L_val(w*(α), α)
++-------------------+         | - architect.step  | s.t. w*(α) = argmin_w L_train(w, α)
+       |                      +-------------------+
+       |                             |
+       v                             v
++-------------------+         +-------------------+
+|    utils.py       |-------->|    evaluate       |
+| (Training Utils)  |         | (Validation)      |
++-------------------+         +-------------------+
+| - AvgrageMeter    |         | - model(images)   | None (supports L_val)
+| - accuracy        |         +-------------------+
++-------------------+                |
+       |                             v
+       v                      +-------------------+
++-------------------+         | derive_genotype   |
+| mc_darts.py (cont)|-------->| (Arch Selection)  |
+| - main (cont)     |         +-------------------+
++-------------------+         | - Genotype output | Eq. 4: o^(i,j) = argmax_o α_o^(i,j)
+| - Model init      |         +-------------------+
+| - Training call   |                |
++-------------------+                |
+       |                             v
+       v                      +-------------------+
++-------------------+         | plot_genotype.py  |
+| genotypes.py      |-------->| (Visualization)   |
+| (Pre-defined)     |         +-------------------+
++-------------------+         | - plot            | None (visualizes Genotype)
+| - NASNet, etc.    |         +-------------------+
++-------------------+

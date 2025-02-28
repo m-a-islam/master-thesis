@@ -8,7 +8,7 @@ class MixedOp(nn.Module):
     def __init__(self, C, stride):
         super(MixedOp, self).__init__()
         self._ops = nn.ModuleList()
-        for primitive in PRIMITIVES:
+        for primitive in PRIMITIVES['CNN']:  # Using CNN primitives dynamically
             op = OPS[primitive](C, stride, False)
             if 'pool' in primitive:
                 op = nn.Sequential(op, nn.BatchNorm2d(C, affine=False))
