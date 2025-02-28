@@ -1,3 +1,5 @@
+
+/* cell structure: small computational unit that contains multiple operations */
 {
   "search_space": {
     "CNN_operations": [
