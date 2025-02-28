@@ -21,7 +21,7 @@ logging.basicConfig(filename='error-file.log', level=logging.INFO,
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"🚀 Using device: {device}")
-
+# superNet models
 class MixedOp(nn.Module):
     def __init__(self, C_in, C_out, stride, op_names):
         super(MixedOp, self).__init__()
