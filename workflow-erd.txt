@@ -45,7 +45,7 @@
 +-------------------+         |     train         |
 |    architect.py   |-------->| (Training Loop)   |
 | (Alpha Optimizer) |         +-------------------+
-| - Architect       |         | - model(images)   | Eq. 3: min_α L_val(w*(α), α)
+| - Architect       |         | - model(images)   | Eq. 3: min_α L_val(w*(α), α)  // bi-level optimization
 +-------------------+         | - architect.step  | s.t. w*(α) = argmin_w L_train(w, α)
        |                      +-------------------+
        |                             |
@@ -62,7 +62,7 @@
 +-------------------+         | derive_genotype   |
 | mc_darts.py (cont)|-------->| (Arch Selection)  |
 | - main (cont)     |         +-------------------+
-+-------------------+         | - Genotype output | Eq. 4: o^(i,j) = argmax_o α_o^(i,j)
++-------------------+         | - Genotype output | Eq. 4: o^(i,j) = argmax_o α_o^(i,j) // approximation
 | - Model init      |         +-------------------+
 | - Training call   |                |
 +-------------------+                |

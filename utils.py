@@ -53,7 +53,7 @@ class Cutout(object):
         mask = mask.expand_as(img)
         img *= mask
         return img
-
+## todo: change this for MNIST dataset
 def _data_transforms_cifar10(args):
     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
     CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]

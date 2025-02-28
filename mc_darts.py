@@ -38,7 +38,7 @@ class MixedOp(nn.Module):
             )
         else:
             self.proj = nn.Identity()
-
+    ## continuous relaxation using softmax
     def forward(self, x, weights):
         weights = weights.view(-1)
         assert x.shape[1] == self.C_in, f"Expected {self.C_in} channels, got {x.shape[1]}"
@@ -245,6 +245,7 @@ def train(model, train_loader, valid_loader, optimizer, criterion, architect, ar
 
     return top1.avg, objs.avg
 
+## todo: change this for MNIST dataset accordingly
 def evaluate(model, test_loader):
     top1 = AvgrageMeter()
     model.eval()
