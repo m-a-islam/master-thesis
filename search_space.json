@@ -1,78 +1,76 @@
-
-/* cell structure: small computational unit that contains multiple operations */
 {
   "search_space": {
     "CNN_operations": [
-      "conv_1x1",   // 1x1 convolution (pointwise)
-      "conv_3x3",   // Standard 3x3 convolution
-      "conv_5x5",   // 5x5 convolution for larger receptive fields
-      "max_pool_2x2",   // 2x2 max pooling
-      "avg_pool_2x2",   // 2x2 average pooling
-      "skip_connect",   // Identity shortcut connection
-      "depthwise_conv_3x3",  // Depthwise separable convolution (efficient)
-      "batch_norm"  // Batch normalization to stabilize training
+      "conv_1x1",
+      "conv_3x3",
+      "conv_5x5",
+      "max_pool_2x2",
+      "avg_pool_2x2",
+      "skip_connect",
+      "depthwise_conv_3x3",
+      "batch_norm"
     ],
     "MLP_operations": [
-      "mlp",   // Fully connected multi-layer perceptron
-      "dropout",   // Drops random neurons to prevent overfitting
-      "layer_norm",   // Normalization across features
-      "none",   // No operation (pruning)
-      "skip_connect"   // Identity shortcut
+      "mlp",
+      "dropout",
+      "layer_norm",
+      "none",
+      "skip_connect"
     ],
     "Fusion_operations": [
-      "squeeze_excitation",  // Adaptive recalibration of feature maps (SE-Net)
-      "conv_1x1",   // Pointwise convolution
-      "skip_connect",   // Identity shortcut connection
-      "batch_norm"   // Batch normalization
+      "squeeze_excitation",
+      "conv_1x1",
+      "skip_connect",
+      "batch_norm"
     ],
     "cells": {
       "CNN": {
-        "n_nodes": 4,   // Number of nodes in the CNN cell
-        "n_inputs": 2,   // Number of input connections per node
-        "reduction_cells": [2, 5],   // Reduction at these layers
+        "n_nodes": 4,
+        "n_inputs": 2,
+        "reduction_cells": [2, 5],
         "channels": {
-          "initial": 8,   // Initial number of channels
-          "increment": 2,   // Growth factor per reduction cell
-          "steps": [8, 16, 32, 64]   // Channel progression at different layers
+          "initial": 8,
+          "increment": 2,
+          "steps": [8, 16, 32, 64]
         },
-        "dropout_rate": 0.3   // Dropout rate for regularization
+        "dropout_rate": 0.3
       },
       "MLP": {
-        "n_nodes": 3,   // Number of nodes in the MLP cell
-        "n_inputs": 1,   // Number of inputs per node
-        "hidden_sizes": [32, 64, 128],   // Sizes of fully connected layers
-        "dropout_rate": 0.5,   // Dropout rate
-        "activation": "relu"   // Activation function used
+        "n_nodes": 3,
+        "n_inputs": 1,
+        "hidden_sizes": [32, 64, 128],
+        "dropout_rate": 0.5,
+        "activation": "relu"
       },
       "Fusion": {
-        "n_nodes": 2,   // Number of nodes in the fusion cell
-        "n_inputs": 2,   // Number of input connections
-        "fusion_type": "concat",   // Type of fusion operation (concatenation)
-        "squeeze_ratio": 4   // Squeeze ratio for SE layers
+        "n_nodes": 2,
+        "n_inputs": 2,
+        "fusion_type": "concat",
+        "squeeze_ratio": 4
       }
     },
     "training": {
-      "batch_size": 64,   // Number of samples per training batch
-      "learning_rate": 0.001,   // Initial learning rate
-      "weight_decay": 0.0003,   // Regularization parameter
+      "batch_size": 64,
+      "learning_rate": 0.001,
+      "weight_decay": 0.0003,
       "epochs": {
-        "search": 50,   // Number of epochs for architecture search
-        "train": 100   // Number of epochs for final training
+        "search": 50,
+        "train": 100
       },
       "scheduler": {
-        "type": "cosine",   // Learning rate decay method
-        "min_lr": 0.0001,   // Minimum learning rate
-        "warmup_epochs": 5   // Number of warmup epochs before decay
+        "type": "cosine",
+        "min_lr": 0.0001,
+        "warmup_epochs": 5
       }
     },
     "architecture": {
-      "init_channels": 8,   // Initial number of channels
-      "layers": 8,   // Total number of layers in the model
+      "init_channels": 8,
+      "layers": 8,
       "auxiliary": {
-        "enabled": true,   // Enable auxiliary loss for stability
-        "weight": 0.4   // Weight assigned to auxiliary loss
+        "enabled": true,
+        "weight": 0.4
       },
-      "drop_path_prob": 0.2   // Probability of dropping paths during training
+      "drop_path_prob": 0.2
     }
   }
 }

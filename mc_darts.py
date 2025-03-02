@@ -29,8 +29,11 @@ class MixedOp(nn.Module):
         for primitive in op_names:
             op = OPS[primitive](C_in, stride).to(device)
             self._ops.append(op)
+
         self.C_in = C_in
         self.C_out = C_out
+
+        # ✅ FIX: Add projection layer for channel transformation if needed
         if C_in != C_out:
             self.proj = nn.Sequential(
                 nn.Conv2d(C_in, C_out, 1, bias=False),
@@ -38,12 +41,18 @@ class MixedOp(nn.Module):
             )
         else:
             self.proj = nn.Identity()
-    ## continuous relaxation using softmax
+
     def forward(self, x, weights):
-        weights = weights.view(-1)
-        assert x.shape[1] == self.C_in, f"Expected {self.C_in} channels, got {x.shape[1]}"
-        out = sum(w * op(x) for w, op in zip(weights, self._ops) if w > 1e-3)
+        print(weights)
+        # Handle scalar weights (0-d tensor)
+        if isinstance(weights, torch.Tensor) and weights.dim() == 0:
+            # If weights is a scalar tensor, use it with the first operation
+            out = weights * self._ops[0](x)
+        else:
+            # Original implementation for when weights is iterable
+            out = sum(w * op(x) for w, op in zip(weights, self._ops) if w.item() > 1e-3)
         return self.proj(out)
+
 
 class Cell(nn.Module):
     def __init__(self, C_prev, C_curr, reduction, cell_type, steps=4):
@@ -54,9 +63,11 @@ class Cell(nn.Module):
         cell_config = SEARCH_SPACE.get_cell_config(cell_type)
         self.n_inputs = cell_config.get('n_inputs', 2)
         op_names = SEARCH_SPACE.get_operations(cell_type)
+        self.C_prev = C_prev
+        self.C_curr = C_curr
 
         self.preprocess = nn.ModuleList()
-        for _ in range(self.n_inputs):
+        for i in range(self.n_inputs):
             if cell_type == 'MLP':
                 self.preprocess.append(nn.Sequential(
                     nn.AdaptiveAvgPool2d(7),
@@ -64,12 +75,21 @@ class Cell(nn.Module):
                     nn.Linear(C_prev * 7 * 7, C_curr)
                 ))
             else:
-                self.preprocess.append(
-                    nn.Sequential(
-                        nn.Conv2d(C_prev, C_curr, 1, bias=False),
-                        nn.BatchNorm2d(C_curr)
+                # Add a channel adaptation layer before regular preprocessing
+                if i == 0:  # First input might have different dimensions
+                    self.preprocess.append(
+                        nn.Sequential(
+                            nn.Conv2d(C_prev, C_curr, 1, bias=False),
+                            nn.BatchNorm2d(C_curr)
+                        )
                     )
-                )
+                else:  # Second input is from previous cell and might have C_curr*2 channels
+                    self.preprocess.append(
+                        nn.Sequential(
+                            nn.Conv2d(C_prev, C_curr, 1, bias=False),
+                            nn.BatchNorm2d(C_curr)
+                        )
+                    )
 
         self._ops = nn.ModuleList()
         self._indices = []
@@ -82,24 +102,67 @@ class Cell(nn.Module):
                 self._indices.append(j)
 
     def forward(self, inputs, weights):
-        states = [self.preprocess[i](inputs[i]) for i in range(self.n_inputs)]
-        logging.info(f"Cell {self.cell_type}: Preprocessed states shapes: {[s.shape for s in states]}")
+        logging.info(f"🔄 Cell Processing: inputs = {[type(i) for i in inputs]}")
+        
+        # Ensure all inputs are tensors before processing
+        assert all(isinstance(i, torch.Tensor) for i in inputs), f"❌ Expected tensor inputs, got {[type(i) for i in inputs]}"
+        
+        # Print channel dimensions for debugging
+        for i, inp in enumerate(inputs):
+            logging.info(f"Input {i} shape: {inp.shape}")
+        
+        # Dynamic channel adaptation if needed
+        adapted_inputs = []
+        for i, inp in enumerate(inputs):
+            if self.cell_type != 'MLP' and i < len(self.preprocess):
+                # Find the first Conv2d in the preprocessing chain
+                for module in self.preprocess[i].modules():
+                    if isinstance(module, nn.Conv2d):
+                        expected_channels = module.in_channels
+                        actual_channels = inp.shape[1]
+                        
+                        if expected_channels != actual_channels:
+                            logging.warning(f"⚠️ Channel mismatch for input {i}: expected {expected_channels}, got {actual_channels}")
+                            # Create and apply a temporary adapter
+                            adapter = nn.Conv2d(actual_channels, expected_channels, 1, bias=False).to(inp.device)
+                            nn.init.kaiming_normal_(adapter.weight)
+                            inp = adapter(inp)
+                        break
+            adapted_inputs.append(inp)
+        
+        # Use the adapted inputs for preprocessing
+        states = [self.preprocess[i](adapted_inputs[i]) for i in range(min(self.n_inputs, len(adapted_inputs)))]
+
         offset = 0
         for i in range(self.steps):
-            curr_states = [states[j] for j in range(self.n_inputs + i)]
+            curr_states = states[:self.n_inputs + i]
             curr_weights = weights[offset:offset + len(curr_states)]
+
+            # Debugging: Ensure inputs to MixedOp are tensors
+            for j, h in enumerate(curr_states):
+                assert isinstance(h, torch.Tensor), f"❌ curr_states[{j}] is not a tensor, got {type(h)}"
+
+            # ✅ FIX: Ensure `s` is always a tensor
             s = sum(self._ops[offset + j](h, curr_weights[j]) for j, h in enumerate(curr_states))
+
+            if not isinstance(s, torch.Tensor):
+                s = torch.tensor(s, dtype=curr_states[0].dtype, device=curr_states[0].device)  # ✅ Convert to tensor if needed
+
             offset += len(curr_states)
-            states.append(s)
-        output = torch.cat(states[-self.steps:], dim=1)
-        logging.info(f"Cell {self.cell_type}: Output shape: {output.shape}")
+            states.append(s)  # ✅ Now, `s` is always a tensor
+
+        output = torch.cat(states[-self.n_inputs:], dim=1)
+        logging.info(f"✅ Cell Output Shape: {output.shape}")
         return output
+
+
 
 class MicroDARTS(nn.Module):
     def __init__(self, C=16, num_classes=10, layers=8, steps=4, genotype=None):
         super(MicroDARTS, self).__init__()
         self._layers = layers
         self._steps = steps
+        self.n_inputs = 2 
         self.cell_types = ['CNN', 'MLP', 'Fusion'] if genotype is None else ['CNN']
         self.cells_per_type = layers // len(self.cell_types) + 1 if genotype is None else layers
 
@@ -113,6 +176,9 @@ class MicroDARTS(nn.Module):
         self.cells = nn.ModuleList()
         C_prev = C_curr
         layer_idx = 0
+        
+        # Keep track of input dimensions for each cell
+        self.cell_input_dims = []
 
         if genotype is None:
             for cell_type in self.cell_types:
@@ -126,13 +192,21 @@ class MicroDARTS(nn.Module):
                         C_curr = cell_config.get('hidden_sizes', [32])[0]
                     else:
                         C_curr = C  # Reset C_curr for CNN and Fusion to initial value
+                    
+                    # Store input dimensions for this cell
+                    self.cell_input_dims.append(C_prev)
+                    
                     cell = Cell(C_prev, C_curr, reduction, cell_type, steps)
                     self.cells.append(cell)
                     num_ops = len(cell._ops)
                     self.register_parameter(f'alpha_{layer_idx}', nn.Parameter(torch.randn(num_ops)))
-                    C_prev = C_curr * (self._steps if cell_type == 'Fusion' else 2)
-                    if reduction and cell_type != 'MLP':
-                        C_curr *= cell_config.get('channels', {}).get('increment', 2)
+                    
+                    # Update C_prev for the NEXT cell's input
+                    if i < self.cells_per_type - 1:  # Only update if there's a next cell
+                        C_prev = C_curr * (self._steps if cell_type == 'Fusion' else 2)
+                        if reduction and cell_type != 'MLP':
+                            C_curr *= cell_config.get('channels', {}).get('increment', 2)
+                    
                     layer_idx += 1
                     logging.info(f"Layer {layer_idx}: C_prev={C_prev}, C_curr={C_curr}, Type={cell_type}, Reduction={reduction}")
         else:
@@ -153,6 +227,7 @@ class MicroDARTS(nn.Module):
     def forward(self, x):
         s0 = s1 = self.stem(x)
         logging.info(f"Stem output shape: {s1.shape}")
+
         for i, cell in enumerate(self.cells):
             if self.genotype and not cell.reduction:
                 weights = self.genotype_weights(self.genotype.normal, i, cell)
@@ -160,10 +235,20 @@ class MicroDARTS(nn.Module):
                 weights = self.genotype_weights(self.genotype.reduce, i, cell)
             else:
                 weights = F.softmax(getattr(self, f'alpha_{i}'), dim=0)
+
+            logging.info(f"📢 Before cell {i}: s0.shape={s0.shape}, s1.shape={s1.shape}, weights.shape={weights.shape}")
+            
+            # Ensure `s0` and `s1` are tensors
+            assert isinstance(s0, torch.Tensor), f"❌ s0 is not a tensor, got {type(s0)}"
+            assert isinstance(s1, torch.Tensor), f"❌ s1 is not a tensor, got {type(s1)}"
+            
             s0, s1 = s1, cell([s0, s1], weights)
+
         out = self.global_pooling(s1)
         logits = self.classifier(out.view(out.size(0), -1))
         return logits
+
+
 
     def _loss(self, input, target):
         logits = self(input)
