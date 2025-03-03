@@ -9,6 +9,7 @@ import torchvision.transforms as transforms
 import torch.optim as optim
 import logging
 import argparse
+from torch.utils.data import random_split
 from phylum import SEARCH_SPACE
 from model_search import MixedOp
 from operations import OPS
@@ -24,21 +25,45 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"🚀 Using device: {device}")
 
 def get_mnist_loader(batch_size=64, data_root="data"):
+    # Ensure MNIST is already downloaded
+    assert os.path.exists(os.path.join(data_root, "MNIST/raw")), (
+        "❌ MNIST data not found in 'data/MNIST/raw' -- please ensure it's pre-downloaded."
+    )
+
     transform = transforms.Compose([
         transforms.RandomRotation(10),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
     ])
-    train_set = torchvision.datasets.MNIST(root=data_root, train=True, download=True, transform=transform)
-    train_size = int(0.8 * len(train_set))
-    valid_size = len(train_set) - train_size
-    train_subset, valid_subset = torch.utils.data.random_split(train_set, [train_size, valid_size])
-    test_set = torchvision.datasets.MNIST(root=data_root, train=False, download=True, transform=transform)
 
-    train_loader = torch.utils.data.DataLoader(train_subset, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
-    valid_loader = torch.utils.data.DataLoader(valid_subset, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
+    # Load the entire official training set
+    full_train_set = torchvision.datasets.MNIST(
+        root=data_root, train=True, download=False, transform=transform
+    )
+    test_set = torchvision.datasets.MNIST(
+        root=data_root, train=False, download=False, transform=transform
+    )
+
+    # Split the full training set into 80% train / 20% valid
+    train_size = int(0.8 * len(full_train_set))
+    valid_size = len(full_train_set) - train_size
+    train_subset, valid_subset = random_split(full_train_set, [train_size, valid_size])
+
+    # Create DataLoaders
+    train_loader = torch.utils.data.DataLoader(
+        train_subset, batch_size=batch_size, shuffle=True,
+        num_workers=2, pin_memory=True
+    )
+    valid_loader = torch.utils.data.DataLoader(
+        valid_subset, batch_size=batch_size, shuffle=False,
+        num_workers=2, pin_memory=True
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_set, batch_size=batch_size, shuffle=False,
+        num_workers=2, pin_memory=True
+    )
+
     return train_loader, valid_loader, test_loader
 
 class Cell(nn.Module):
