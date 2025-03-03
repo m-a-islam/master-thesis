@@ -87,22 +87,20 @@ def get_mnist_loader(batch_size=32, data_root="data"):
 
 # mc_darts.py
 class Cell(nn.Module):
-    """
-    A basic CNN cell with multiple 'MixedOp's.
-    """
-    def __init__(self, C_in, C_out, reduction=False, steps=4):
+    def __init__(self, input_channels, C_out, reduction=False, steps=4):
         super(Cell, self).__init__()
         self.reduction = reduction
         self.steps = steps
         cell_config = SEARCH_SPACE.get_cell_config('CNN')
         self.n_inputs = cell_config.get('n_inputs', 2)
+        self.input_channels = input_channels  # List of input channels for each input
 
         self.preprocess = nn.ModuleList()
-        for _ in range(self.n_inputs):
-            # 1x1 conv to match channels
+        for ch in self.input_channels:
+            # 1x1 conv to match channels from ch to C_out
             self.preprocess.append(
                 nn.Sequential(
-                    nn.Conv2d(C_in, C_out, 1, bias=False),
+                    nn.Conv2d(ch, C_out, 1, bias=False),
                     nn.BatchNorm2d(C_out)
                 )
             )
@@ -134,10 +132,6 @@ class Cell(nn.Module):
 
 # mc_darts.py
 class MicroDARTS(nn.Module):
-    """
-    A simplified DARTS-like network that uses only CNN cells on MNIST.
-    Default layers=4 and init_channels=8 to reduce memory usage.
-    """
     def __init__(self, init_channels=8, num_classes=10, layers=4, steps=4):
         super(MicroDARTS, self).__init__()
         self._layers = layers
@@ -154,27 +148,31 @@ class MicroDARTS(nn.Module):
 
         # Build cells
         self.cells = nn.ModuleList()
-        C_prev = init_channels
         cell_config = SEARCH_SPACE.get_cell_config('CNN')
+        n_inputs = cell_config['n_inputs']
         reduction_cells = cell_config.get('reduction_cells', [2, 5])
+
+        # Track channels of previous two states (s0, s1)
+        s0_channels = init_channels
+        s1_channels = init_channels
 
         for i in range(layers):
             reduction = i in reduction_cells
-            # Output channels remain the same unless we reduce
-            C_curr = C_prev
+            C_curr = s1_channels  # Current cell's output channels per state
             if reduction:
-                # If reduction, effectively double the next channels
                 C_curr *= 2
-            cell = Cell(C_prev, C_curr, reduction, steps)
+            # Input channels are s0 and s1 from previous states
+            input_channels = [s0_channels, s1_channels]
+            cell = Cell(input_channels, C_curr, reduction, steps)
             self.cells.append(cell)
             num_ops = len(cell._ops)
             self.register_parameter(f'alpha_{i}', nn.Parameter(torch.randn(num_ops)))
-            # For the next cell, the channel dimension is cat of the last n_inputs states
-            # each of dimension C_curr
-            C_prev = C_curr * cell_config['n_inputs']
+            # Update s0 and s1 channels for next cell
+            s0_channels = s1_channels
+            s1_channels = C_curr * n_inputs  # Concatenated output channels
 
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(C_prev, num_classes)
+        self.classifier = nn.Linear(s1_channels, num_classes)
 
     def forward(self, x):
         s0 = s1 = self.stem(x)
