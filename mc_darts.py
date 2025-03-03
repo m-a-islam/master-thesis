@@ -277,7 +277,6 @@ def derive_genotype(model):
             top2 = chunk_weights.argsort(descending=True)[:2]
             offset += n_choices
             for idx in top2:
-                print(f"{idx}")
                 local_list.append((idx, idx.item()))
 
     return Genotype(
