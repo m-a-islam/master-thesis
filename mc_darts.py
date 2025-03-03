@@ -93,11 +93,10 @@ class Cell(nn.Module):
         self.steps = steps
         cell_config = SEARCH_SPACE.get_cell_config('CNN')
         self.n_inputs = cell_config.get('n_inputs', 2)
-        self.input_channels = input_channels  # List of input channels for each input
+        self.input_channels = input_channels
 
         self.preprocess = nn.ModuleList()
         for ch in self.input_channels:
-            # 1x1 conv to match channels from ch to C_out
             self.preprocess.append(
                 nn.Sequential(
                     nn.Conv2d(ch, C_out, 1, bias=False),
@@ -109,7 +108,8 @@ class Cell(nn.Module):
         self._indices = []
         for i in range(self.steps):
             for j in range(self.n_inputs + i):
-                stride = 2 if reduction and j < self.n_inputs else 1
+                # Apply stride=2 to ALL ops in reduction cells
+                stride = 2 if reduction else 1
                 op = MixedOp(C_out, stride)
                 self._ops.append(op)
                 self._indices.append(j)

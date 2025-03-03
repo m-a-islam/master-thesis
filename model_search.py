@@ -5,14 +5,14 @@ import torch
 import torch.nn as nn
 from phylum import SEARCH_SPACE
 from operations import OPS
-
 class MixedOp(nn.Module):
     def __init__(self, C, stride):
         super(MixedOp, self).__init__()
         self._ops = nn.ModuleList()
         for primitive in OPS:
             op = OPS[primitive](C, stride)
-            if 'pool' in primitive:
+            # Add BatchNorm after pooling if stride=1 to match DARTS behavior
+            if 'pool' in primitive and stride == 1:
                 op = nn.Sequential(op, nn.BatchNorm2d(C, affine=False))
             self._ops.append(op)
 
