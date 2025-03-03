@@ -8,8 +8,6 @@ class SearchSpace:
         
         self.primitives = {
             'CNN': self.config['CNN_operations'],
-            'MLP': self.config['MLP_operations'],
-            'Fusion': self.config['Fusion_operations']
         }
         
         self.cells = self.config['cells']
