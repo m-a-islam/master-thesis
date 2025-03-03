@@ -85,6 +85,7 @@ def get_mnist_loader(batch_size=32, data_root="data"):
 
     return train_loader, valid_loader, test_loader
 
+# mc_darts.py
 class Cell(nn.Module):
     """
     A basic CNN cell with multiple 'MixedOp's.
@@ -131,6 +132,7 @@ class Cell(nn.Module):
 
         return torch.cat(states[-self.n_inputs:], dim=1)
 
+# mc_darts.py
 class MicroDARTS(nn.Module):
     """
     A simplified DARTS-like network that uses only CNN cells on MNIST.
