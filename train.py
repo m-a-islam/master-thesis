@@ -1,3 +1,7 @@
+# train.py
+# Generic training loop for a PyTorch model.
+
+import torch
 import torch.optim.lr_scheduler as lr_scheduler
 
 def train(model, train_loader, optimizer, criterion, args):

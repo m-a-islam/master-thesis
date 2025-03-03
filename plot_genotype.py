@@ -1,13 +1,18 @@
+# plot_genotype.py
+# Visualizes a Genotype object using graphviz for CNN cells.
+
 import sys
+import os
 import genotypes
 from graphviz import Digraph
 
-def plot(genotype, filename):
+def plot(genotype, filename_suffix, genotype_name=""):
     g = Digraph(
         format='pdf',
         edge_attr=dict(fontsize='20', fontname="times"),
         node_attr=dict(style='filled', shape='rect', align='center', fontsize='20', height='0.5', width='0.5', penwidth='2', fontname="times"),
-        engine='dot')
+        engine='dot'
+    )
     g.body.extend(['rankdir=LR'])
 
     g.node("c_{k-2}", fillcolor='darkseagreen2')
@@ -34,19 +39,26 @@ def plot(genotype, filename):
     for i in range(steps):
         g.edge(str(i), "c_{k}", fillcolor="gray")
 
-    g.render(filename, view=True)
+    # Create a more descriptive filename that includes the architecture name
+    full_filename = f"{genotype_name}_{filename_suffix}" if genotype_name else filename_suffix
+    
+    try:
+        g.render(full_filename, view=True)
+    except Exception as e:
+        print(f"Error rendering graph: {e}")
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print("usage:\n python {} ARCH_NAME".format(sys.argv[0]))
+        print(f"usage:\n python {sys.argv[0]} ARCH_NAME")
         sys.exit(1)
 
     genotype_name = sys.argv[1]
     try:
-        genotype = eval('genotypes.{}'.format(genotype_name))
+        genotype = eval(f'genotypes.{genotype_name}')
     except AttributeError:
-        print("{} is not specified in genotypes.py".format(genotype_name))
+        print(f"{genotype_name} is not specified in genotypes.py")
         sys.exit(1)
 
-    plot(genotype.normal, "normal")
-    plot(genotype.reduce, "reduction")
+    # Pass the genotype_name to the plot function
+    plot(genotype.normal, "normal", genotype_name)
+    plot(genotype.reduce, "reduction", genotype_name)

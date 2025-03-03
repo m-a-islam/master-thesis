@@ -1,4 +1,6 @@
-# Bilevel optimization for alpha
+# architect.py
+# Bilevel optimization for the architecture parameters (alpha).
+
 import torch
 import numpy as np
 import torch.nn as nn
@@ -12,23 +14,11 @@ class Architect(object):
         self.network_momentum = args.momentum
         self.network_weight_decay = args.weight_decay
         self.model = model
-        self.optimizer = torch.optim.Adam(self.model.arch_parameters(),
-                                          lr=args.arch_learning_rate, betas=(0.5, 0.999),
-                                          weight_decay=args.arch_weight_decay)
-
-    ## this function is responsible for bi-level optimization of alpha
-    def _compute_unrolled_model(self, input, target, eta, network_optimizer):
-        loss = self.model._loss(input, target)
-        theta = _concat(self.model.parameters()).data
-        try:
-            moment = _concat(network_optimizer.state[v]['momentum_buffer'] for v in self.model.parameters()).mul_(self.network_momentum)
-        except:
-            moment = torch.zeros_like(theta)
-        # this step is responsible for calculating the gradient of the loss w.r.t. the model parameters
-        # which is known as architecture approximation
-        dtheta = _concat(torch.autograd.grad(loss, self.model.parameters())).data + self.network_weight_decay * theta
-        unrolled_model = self._construct_model_from_theta(theta.sub(eta, moment + dtheta))
-        return unrolled_model
+        self.optimizer = torch.optim.Adam(
+            self.model.arch_parameters(),
+            lr=args.arch_learning_rate, betas=(0.5, 0.999),
+            weight_decay=args.arch_weight_decay
+        )
 
     def step(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer, unrolled):
         self.optimizer.zero_grad()
@@ -45,10 +35,10 @@ class Architect(object):
     def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer):
         unrolled_model = self._compute_unrolled_model(input_train, target_train, eta, network_optimizer)
         unrolled_loss = unrolled_model._loss(input_valid, target_valid)
-
         unrolled_loss.backward()
+
         dalpha = [v.grad for v in unrolled_model.arch_parameters()]
-        vector = [v.grad.data for v in unrolled_model.parameters()]
+        vector = [v.grad.data for v in unrolled_model.parameters() if v.grad is not None]
         implicit_grads = self._hessian_vector_product(vector, input_train, target_train)
 
         for g, ig in zip(dalpha, implicit_grads):
@@ -60,6 +50,18 @@ class Architect(object):
             else:
                 v.grad.data.copy_(g.data)
 
+    def _compute_unrolled_model(self, input, target, eta, network_optimizer):
+        loss = self.model._loss(input, target)
+        theta = _concat(self.model.parameters()).data
+        try:
+            moment = _concat(network_optimizer.state[v]['momentum_buffer'] for v in self.model.parameters()).mul_(self.network_momentum)
+        except:
+            moment = torch.zeros_like(theta)
+
+        dtheta = _concat(torch.autograd.grad(loss, self.model.parameters())).data + self.network_weight_decay * theta
+        unrolled_model = self._construct_model_from_theta(theta.sub(eta, moment + dtheta))
+        return unrolled_model
+
     def _construct_model_from_theta(self, theta):
         model_new = self.model.new()
         model_dict = self.model.state_dict()
@@ -67,15 +69,14 @@ class Architect(object):
         params, offset = {}, 0
         for k, v in self.model.named_parameters():
             v_length = np.prod(v.size())
-            params[k] = theta[offset: offset + v_length].view(v.size())
+            params[k] = theta[offset : offset + v_length].view(v.size())
             offset += v_length
 
         assert offset == len(theta)
         model_dict.update(params)
         model_new.load_state_dict(model_dict)
-        return model_new.cuda()
+        return model_new
 
-    ## finite difference approximation
     def _hessian_vector_product(self, vector, input, target, r=1e-2):
         R = r / _concat(vector).norm()
         for p, v in zip(self.model.parameters(), vector):
@@ -84,11 +85,11 @@ class Architect(object):
         grads_p = torch.autograd.grad(loss, self.model.arch_parameters())
 
         for p, v in zip(self.model.parameters(), vector):
-            p.data.sub_(2 * R, v)
+            p.data.sub_(2*R, v)
         loss = self.model._loss(input, target)
         grads_n = torch.autograd.grad(loss, self.model.arch_parameters())
 
         for p, v in zip(self.model.parameters(), vector):
             p.data.add_(R, v)
 
-        return [(x - y).div_(2 * R) for x, y in zip(grads_p, grads_n)]
+        return [(x - y).div_(2*R) for x, y in zip(grads_p, grads_n)]

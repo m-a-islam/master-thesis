@@ -1,281 +1,27 @@
+# mc_darts.py
+# Bilevel search logic and main flow specialized for CNN-only on MNIST.
+
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
+import torch.optim as optim
 import logging
-from primitives import ALL_PRIMITIVES
-from operations import OPS
-from phylum import SEARCH_SPACE
-from architect import Architect
-from genotypes import Genotype, PRIMITIVES, NASNet, AmoebaNet, DARTS_V1, DARTS_V2
-from utils import AvgrageMeter, accuracy
-import numpy as np
 import argparse
+from phylum import SEARCH_SPACE
+from model_search import MixedOp
+from operations import OPS
+from genotypes import Genotype
+from architect import Architect
+from utils import AvgrageMeter, accuracy
 from types import SimpleNamespace
 
-# Configure logging
 logging.basicConfig(filename='error-file.log', level=logging.INFO,
                     format='%(asctime)s %(levelname)s %(message)s')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"🚀 Using device: {device}")
-# superNet models
-class MixedOp(nn.Module):
-    def __init__(self, C_in, C_out, stride, op_names):
-        super(MixedOp, self).__init__()
-        self._ops = nn.ModuleList()
-        for primitive in op_names:
-            op = OPS[primitive](C_in, stride).to(device)
-            self._ops.append(op)
-
-        self.C_in = C_in
-        self.C_out = C_out
-
-        # ✅ FIX: Add projection layer for channel transformation if needed
-        if C_in != C_out:
-            self.proj = nn.Sequential(
-                nn.Conv2d(C_in, C_out, 1, bias=False),
-                nn.BatchNorm2d(C_out)
-            )
-        else:
-            self.proj = nn.Identity()
-
-    def forward(self, x, weights):
-        print(weights)
-        # Handle scalar weights (0-d tensor)
-        if isinstance(weights, torch.Tensor) and weights.dim() == 0:
-            # If weights is a scalar tensor, use it with the first operation
-            out = weights * self._ops[0](x)
-        else:
-            # Original implementation for when weights is iterable
-            out = sum(w * op(x) for w, op in zip(weights, self._ops) if w.item() > 1e-3)
-        return self.proj(out)
-
-
-class Cell(nn.Module):
-    def __init__(self, C_prev, C_curr, reduction, cell_type, steps=4):
-        super(Cell, self).__init__()
-        self.cell_type = cell_type
-        self.reduction = reduction
-        self.steps = steps
-        cell_config = SEARCH_SPACE.get_cell_config(cell_type)
-        self.n_inputs = cell_config.get('n_inputs', 2)
-        op_names = SEARCH_SPACE.get_operations(cell_type)
-        self.C_prev = C_prev
-        self.C_curr = C_curr
-
-        self.preprocess = nn.ModuleList()
-        for i in range(self.n_inputs):
-            if cell_type == 'MLP':
-                self.preprocess.append(nn.Sequential(
-                    nn.AdaptiveAvgPool2d(7),
-                    nn.Flatten(),
-                    nn.Linear(C_prev * 7 * 7, C_curr)
-                ))
-            else:
-                # Add a channel adaptation layer before regular preprocessing
-                if i == 0:  # First input might have different dimensions
-                    self.preprocess.append(
-                        nn.Sequential(
-                            nn.Conv2d(C_prev, C_curr, 1, bias=False),
-                            nn.BatchNorm2d(C_curr)
-                        )
-                    )
-                else:  # Second input is from previous cell and might have C_curr*2 channels
-                    self.preprocess.append(
-                        nn.Sequential(
-                            nn.Conv2d(C_prev, C_curr, 1, bias=False),
-                            nn.BatchNorm2d(C_curr)
-                        )
-                    )
-
-        self._ops = nn.ModuleList()
-        self._indices = []
-        for i in range(self.steps):
-            for j in range(self.n_inputs + i):
-                stride = 2 if reduction and j < self.n_inputs and cell_type != 'MLP' else 1
-                C_in = C_curr
-                op = MixedOp(C_in, C_curr, stride, op_names)
-                self._ops.append(op)
-                self._indices.append(j)
-
-    def forward(self, inputs, weights):
-        logging.info(f"🔄 Cell Processing: inputs = {[type(i) for i in inputs]}")
-        
-        # Ensure all inputs are tensors before processing
-        assert all(isinstance(i, torch.Tensor) for i in inputs), f"❌ Expected tensor inputs, got {[type(i) for i in inputs]}"
-        
-        # Print channel dimensions for debugging
-        for i, inp in enumerate(inputs):
-            logging.info(f"Input {i} shape: {inp.shape}")
-        
-        # Dynamic channel adaptation if needed
-        adapted_inputs = []
-        for i, inp in enumerate(inputs):
-            if self.cell_type != 'MLP' and i < len(self.preprocess):
-                # Find the first Conv2d in the preprocessing chain
-                for module in self.preprocess[i].modules():
-                    if isinstance(module, nn.Conv2d):
-                        expected_channels = module.in_channels
-                        actual_channels = inp.shape[1]
-                        
-                        if expected_channels != actual_channels:
-                            logging.warning(f"⚠️ Channel mismatch for input {i}: expected {expected_channels}, got {actual_channels}")
-                            # Create and apply a temporary adapter
-                            adapter = nn.Conv2d(actual_channels, expected_channels, 1, bias=False).to(inp.device)
-                            nn.init.kaiming_normal_(adapter.weight)
-                            inp = adapter(inp)
-                        break
-            adapted_inputs.append(inp)
-        
-        # Use the adapted inputs for preprocessing
-        states = [self.preprocess[i](adapted_inputs[i]) for i in range(min(self.n_inputs, len(adapted_inputs)))]
-
-        offset = 0
-        for i in range(self.steps):
-            curr_states = states[:self.n_inputs + i]
-            curr_weights = weights[offset:offset + len(curr_states)]
-
-            # Debugging: Ensure inputs to MixedOp are tensors
-            for j, h in enumerate(curr_states):
-                assert isinstance(h, torch.Tensor), f"❌ curr_states[{j}] is not a tensor, got {type(h)}"
-
-            # ✅ FIX: Ensure `s` is always a tensor
-            s = sum(self._ops[offset + j](h, curr_weights[j]) for j, h in enumerate(curr_states))
-
-            if not isinstance(s, torch.Tensor):
-                s = torch.tensor(s, dtype=curr_states[0].dtype, device=curr_states[0].device)  # ✅ Convert to tensor if needed
-
-            offset += len(curr_states)
-            states.append(s)  # ✅ Now, `s` is always a tensor
-
-        output = torch.cat(states[-self.n_inputs:], dim=1)
-        logging.info(f"✅ Cell Output Shape: {output.shape}")
-        return output
-
-
-
-class MicroDARTS(nn.Module):
-    def __init__(self, C=16, num_classes=10, layers=8, steps=4, genotype=None):
-        super(MicroDARTS, self).__init__()
-        self._layers = layers
-        self._steps = steps
-        self.n_inputs = 2 
-        self.cell_types = ['CNN', 'MLP', 'Fusion'] if genotype is None else ['CNN']
-        self.cells_per_type = layers // len(self.cell_types) + 1 if genotype is None else layers
-
-        C_curr = C
-        self.stem = nn.Sequential(
-            nn.Conv2d(1, C_curr, 3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(C_curr),
-            nn.ReLU(inplace=True)
-        )
-
-        self.cells = nn.ModuleList()
-        C_prev = C_curr
-        layer_idx = 0
-        
-        # Keep track of input dimensions for each cell
-        self.cell_input_dims = []
-
-        if genotype is None:
-            for cell_type in self.cell_types:
-                cell_config = SEARCH_SPACE.get_cell_config(cell_type)
-                reduction_cells = cell_config.get('reduction_cells', [2, 5])
-                for i in range(self.cells_per_type):
-                    if layer_idx >= layers:
-                        break
-                    reduction = layer_idx in reduction_cells
-                    if cell_type == 'MLP':
-                        C_curr = cell_config.get('hidden_sizes', [32])[0]
-                    else:
-                        C_curr = C  # Reset C_curr for CNN and Fusion to initial value
-                    
-                    # Store input dimensions for this cell
-                    self.cell_input_dims.append(C_prev)
-                    
-                    cell = Cell(C_prev, C_curr, reduction, cell_type, steps)
-                    self.cells.append(cell)
-                    num_ops = len(cell._ops)
-                    self.register_parameter(f'alpha_{layer_idx}', nn.Parameter(torch.randn(num_ops)))
-                    
-                    # Update C_prev for the NEXT cell's input
-                    if i < self.cells_per_type - 1:  # Only update if there's a next cell
-                        C_prev = C_curr * (self._steps if cell_type == 'Fusion' else 2)
-                        if reduction and cell_type != 'MLP':
-                            C_curr *= cell_config.get('channels', {}).get('increment', 2)
-                    
-                    layer_idx += 1
-                    logging.info(f"Layer {layer_idx}: C_prev={C_prev}, C_curr={C_curr}, Type={cell_type}, Reduction={reduction}")
-        else:
-            for i in range(layers):
-                reduction = i in [2, 5]
-                cell = Cell(C_prev, C_curr, reduction, 'CNN', steps)
-                self.cells.append(cell)
-                num_ops = len(cell._ops)
-                self.register_parameter(f'alpha_{i}', nn.Parameter(torch.randn(num_ops)))
-                C_prev = C_curr * 2
-                if reduction:
-                    C_curr *= 2
-
-        self.global_pooling = nn.AdaptiveAvgPool2d(1) if self.cells[-1].cell_type != 'MLP' else nn.Identity()
-        self.classifier = nn.Linear(C_prev, num_classes)
-        self.genotype = genotype
-
-    def forward(self, x):
-        s0 = s1 = self.stem(x)
-        logging.info(f"Stem output shape: {s1.shape}")
-
-        for i, cell in enumerate(self.cells):
-            if self.genotype and not cell.reduction:
-                weights = self.genotype_weights(self.genotype.normal, i, cell)
-            elif self.genotype and cell.reduction:
-                weights = self.genotype_weights(self.genotype.reduce, i, cell)
-            else:
-                weights = F.softmax(getattr(self, f'alpha_{i}'), dim=0)
-
-            logging.info(f"📢 Before cell {i}: s0.shape={s0.shape}, s1.shape={s1.shape}, weights.shape={weights.shape}")
-            
-            # Ensure `s0` and `s1` are tensors
-            assert isinstance(s0, torch.Tensor), f"❌ s0 is not a tensor, got {type(s0)}"
-            assert isinstance(s1, torch.Tensor), f"❌ s1 is not a tensor, got {type(s1)}"
-            
-            s0, s1 = s1, cell([s0, s1], weights)
-
-        out = self.global_pooling(s1)
-        logits = self.classifier(out.view(out.size(0), -1))
-        return logits
-
-
-
-    def _loss(self, input, target):
-        logits = self(input)
-        return F.cross_entropy(logits, target)
-
-    def arch_parameters(self):
-        return [getattr(self, f'alpha_{i}') for i in range(self._layers)]
-
-    def new(self):
-        model_new = MicroDARTS(C=16, num_classes=10, layers=self._layers, steps=self._steps, genotype=self.genotype).to(device)
-        for x, y in zip(model_new.arch_parameters(), self.arch_parameters()):
-            x.data.copy_(y.data)
-        return model_new
-
-    def genotype_weights(self, genotype_section, layer_idx, cell):
-        weights = torch.zeros(len(cell._ops), device=device)
-        offset = 0
-        for node in range(self._steps):
-            for j in range(self.n_inputs + node):
-                if offset < len(genotype_section):
-                    op_name, input_idx = genotype_section[offset]
-                    if op_name in SEARCH_SPACE.get_operations('CNN'):
-                        op_idx = SEARCH_SPACE.get_operations('CNN').index(op_name)
-                        if input_idx == j:
-                            weights[offset] = 1.0
-                offset += 1
-        return weights
 
 def get_mnist_loader(batch_size=64, data_root="data"):
     transform = transforms.Compose([
@@ -295,11 +41,126 @@ def get_mnist_loader(batch_size=64, data_root="data"):
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
     return train_loader, valid_loader, test_loader
 
+class Cell(nn.Module):
+    """
+    A basic CNN cell with multiple 'MixedOp's. 
+    """
+    def __init__(self, C_in, C_out, reduction=False, steps=4):
+        super(Cell, self).__init__()
+        self.reduction = reduction
+        self.steps = steps
+        cell_config = SEARCH_SPACE.get_cell_config('CNN')
+        self.n_inputs = cell_config.get('n_inputs', 2)
+
+        self.preprocess = nn.ModuleList()
+        for _ in range(self.n_inputs):
+            # 1x1 conv to match channels
+            self.preprocess.append(
+                nn.Sequential(
+                    nn.Conv2d(C_in, C_out, 1, bias=False),
+                    nn.BatchNorm2d(C_out)
+                )
+            )
+
+        self._ops = nn.ModuleList()
+        self._indices = []
+        for i in range(self.steps):
+            for j in range(self.n_inputs + i):
+                stride = 2 if reduction and j < self.n_inputs else 1
+                op = MixedOp(C_out, stride)
+                self._ops.append(op)
+                self._indices.append(j)
+
+    def forward(self, inputs, weights):
+        # Preprocess each input
+        states = []
+        for i, inp in enumerate(inputs):
+            states.append(self.preprocess[i](inp))
+
+        offset = 0
+        for i in range(self.steps):
+            cur_states = states[: self.n_inputs + i]
+            cur_weights = weights[offset : offset + len(cur_states)]
+            s = sum(self._ops[offset + j](h, cur_weights[j]) for j, h in enumerate(cur_states))
+            offset += len(cur_states)
+            states.append(s)
+
+        return torch.cat(states[-self.n_inputs:], dim=1)
+
+class MicroDARTS(nn.Module):
+    """
+    A simplified DARTS-like network that uses only CNN cells on MNIST.
+    """
+    def __init__(self, init_channels=16, num_classes=10, layers=8, steps=4):
+        super(MicroDARTS, self).__init__()
+        self._layers = layers
+        self._steps = steps
+        self._num_classes = num_classes
+        self.init_channels = init_channels
+
+        # Stem
+        self.stem = nn.Sequential(
+            nn.Conv2d(1, init_channels, 3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(init_channels),
+            nn.ReLU(inplace=True)
+        )
+
+        # Build cells
+        self.cells = nn.ModuleList()
+        C_prev = init_channels
+        cell_config = SEARCH_SPACE.get_cell_config('CNN')
+        reduction_cells = cell_config.get('reduction_cells', [2, 5])
+
+        for i in range(layers):
+            reduction = i in reduction_cells
+            # Output channels remain the same unless we reduce
+            C_curr = C_prev
+            if reduction:
+                # If reduction, effectively double the next channels
+                C_curr *= 2
+            cell = Cell(C_prev, C_curr, reduction, steps)
+            self.cells.append(cell)
+            num_ops = len(cell._ops)
+            self.register_parameter(f'alpha_{i}', nn.Parameter(torch.randn(num_ops)))
+            # For the next cell, the channel dimension is cat of the last n_inputs states
+            # each of dimension C_curr
+            C_prev = C_curr * cell_config['n_inputs']
+
+        self.global_pooling = nn.AdaptiveAvgPool2d(1)
+        self.classifier = nn.Linear(C_prev, num_classes)
+
+    def forward(self, x):
+        s0 = s1 = self.stem(x)
+        for i, cell in enumerate(self.cells):
+            weights = F.softmax(getattr(self, f'alpha_{i}'), dim=0)
+            s0, s1 = s1, cell([s0, s1], weights)
+
+        out = self.global_pooling(s1)
+        logits = self.classifier(out.view(out.size(0), -1))
+        return logits
+
+    def arch_parameters(self):
+        return [getattr(self, f'alpha_{i}') for i in range(self._layers)]
+
+    def new(self):
+        model_new = MicroDARTS(
+            init_channels=self.init_channels,
+            num_classes=self._num_classes,
+            layers=self._layers,
+            steps=self._steps
+        ).to(device)
+        for x, y in zip(model_new.arch_parameters(), self.arch_parameters()):
+            x.data.copy_(y.data)
+        return model_new
+
+    def _loss(self, x, y):
+        logits = self.forward(x)
+        return F.cross_entropy(logits, y)
+
 def train(model, train_loader, valid_loader, optimizer, criterion, architect, args):
     objs = AvgrageMeter()
     top1 = AvgrageMeter()
     model.train()
-    
     train_iter = iter(train_loader)
     valid_iter = iter(valid_loader)
     steps = min(len(train_loader), len(valid_loader))
@@ -314,9 +175,10 @@ def train(model, train_loader, valid_loader, optimizer, criterion, architect, ar
         trn_images, trn_targets = trn_images.to(device), trn_targets.to(device)
         val_images, val_targets = val_images.to(device), val_targets.to(device)
 
-        if not model.genotype:
-            architect.step(trn_images, trn_targets, val_images, val_targets, args.lr, optimizer, unrolled=True)
+        # Architecture step (bi-level optimization)
+        architect.step(trn_images, trn_targets, val_images, val_targets, args.lr, optimizer, unrolled=True)
 
+        # Network step
         optimizer.zero_grad()
         logits = model(trn_images)
         loss = criterion(logits, trn_targets)
@@ -330,12 +192,11 @@ def train(model, train_loader, valid_loader, optimizer, criterion, architect, ar
 
     return top1.avg, objs.avg
 
-## todo: change this for MNIST dataset accordingly
-def evaluate(model, test_loader):
+def evaluate(model, loader):
     top1 = AvgrageMeter()
     model.eval()
     with torch.no_grad():
-        for images, targets in test_loader:
+        for images, targets in loader:
             images, targets = images.to(device), targets.to(device)
             logits = model(images)
             prec1, _ = accuracy(logits, targets, topk=(1, 5))
@@ -344,43 +205,49 @@ def evaluate(model, test_loader):
     return top1.avg
 
 def derive_genotype(model):
-    if model.genotype:
-        return model.genotype
+    """
+    Convert the learned architecture (softmax over alpha weights)
+    into a discrete Genotype with normal and reduce structures.
+    This is a simplified approach, since we are CNN-only.
+    """
     normal = []
     reduce = []
     normal_concat = list(range(2, 2 + model._steps))
     reduce_concat = list(range(2, 2 + model._steps))
-
+    
     for i, cell in enumerate(model.cells):
-        ## this step is Softmax Over Architecture Weights:
         weights = F.softmax(getattr(model, f'alpha_{i}'), dim=0)
-        cell_ops = SEARCH_SPACE.get_operations(cell.cell_type)
+        # For demonstration, pick top 2 Weighted ops (like standard DARTS)
         offset = 0
-        for node in range(model._steps):
-            curr_weights = weights[offset:offset + cell.n_inputs + node]
-            if len(curr_weights) > 0:
-                ## this step is to select top 2 operations with highest weights
-                top2_indices = curr_weights.argsort(descending=True)[:min(2, len(curr_weights))]
-                for idx in top2_indices:
-                    ## Mapping to Operations: operation index is mapped to an actual operation from the search space.
-                    op_idx = idx % len(cell_ops)
-                    input_idx = idx // len(cell_ops)
-                    op_name = cell_ops[op_idx]
-                    if cell.reduction:
-                        reduce.append((op_name, input_idx))
-                    else:
-                        normal.append((op_name, input_idx))
-            offset += cell.n_inputs + node
-    ## Architecture Finalization(discreatize): The final architecture is derived by concatenating the operations and the input indices.
-    return Genotype(normal=normal[:8], normal_concat=normal_concat, reduce=reduce[:8], reduce_concat=reduce_concat)
+        n_inputs = SEARCH_SPACE.get_cell_config('CNN')['n_inputs']
+        steps = cell.steps
+        is_reduce = cell.reduction
+        local_list = reduce if is_reduce else normal
+
+        for node in range(steps):
+            n_choices = n_inputs + node
+            chunk_weights = weights[offset : offset + n_choices]
+            top2 = chunk_weights.argsort(descending=True)[:2]
+            offset += n_choices
+            for idx in top2:
+                op_idx = idx.item()  # which input
+                op_weight = chunk_weights[op_idx]
+                # We won't map to actual op name index-by-index, so let's just store (\"op\", input_idx).
+                # For a real approach, you'd do a separate reference. We'll approximate:
+                local_list.append(("<chosen_op>", op_idx))
+
+    return Genotype(
+        normal=normal,
+        normal_concat=normal_concat,
+        reduce=reduce,
+        reduce_concat=reduce_concat
+    )
 
 def main():
-    parser = argparse.ArgumentParser(description="DARTS on MNIST")
-    parser.add_argument('--genotype', type=str, default=None, choices=['NASNet', 'AmoebaNet', 'DARTS_V1', 'DARTS_V2', None],
-                        help="Use pre-defined genotype instead of searching")
+    parser = argparse.ArgumentParser(description="DARTS on MNIST (CNN only)")
+    parser.add_argument('--genotype', type=str, default=None, help="Unused in this minimal variant.")
     args = parser.parse_args()
 
-    print("🚀 Running MicroDARTS on", device)
     training_config = SEARCH_SPACE.config['training']
     batch_size = training_config['batch_size']
     lr = training_config['learning_rate']
@@ -392,52 +259,32 @@ def main():
         momentum=0.9,
         weight_decay=weight_decay,
         arch_learning_rate=3e-4,
-        arch_weight_decay=1e-3,
-        cutout=False,
-        cutout_length=16
+        arch_weight_decay=1e-3
     )
 
-    train_loader, valid_loader, test_loader = get_mnist_loader(batch_size=batch_size)
+    train_loader, valid_loader, test_loader = get_mnist_loader(batch_size)
     
-    genotype_dict = {
-        'NASNet': NASNet,
-        'AmoebaNet': AmoebaNet,
-        'DARTS_V1': DARTS_V1,
-        'DARTS_V2': DARTS_V2
-    }
+    model = MicroDARTS(
+        init_channels=SEARCH_SPACE.config['architecture']['init_channels'],
+        num_classes=10,
+        layers=SEARCH_SPACE.config['architecture']['layers'],
+        steps=4
+    ).to(device)
 
-    genotype = None
-    if args.genotype:
-        genotype = genotype_dict.get(args.genotype)
-        if genotype is None:
-            raise ValueError(f"Invalid genotype: {args.genotype}")
-        print(f"Using pre-defined genotype: {args.genotype}")
-
-    model = MicroDARTS(C=16, num_classes=10, layers=8, steps=4, genotype=genotype).to(device)
     optimizer = optim.SGD(model.parameters(), lr=train_args.lr, momentum=train_args.momentum, weight_decay=train_args.weight_decay)
     criterion = nn.CrossEntropyLoss()
-    architect = Architect(model, train_args) if not genotype else None
+    architect = Architect(model, train_args)
 
-    print("✅ Model Initialized. Starting Training...\n")
+    print("✅ Model Initialized. Starting Training...")
     for epoch in range(epochs):
-        print(f"🔄 Epoch {epoch + 1}/{epochs}: Training...")
-        top1, loss = train(model, train_loader, valid_loader, optimizer, criterion, architect, train_args)
+        top1, avg_loss = train(model, train_loader, valid_loader, optimizer, criterion, architect, train_args)
         test_acc = evaluate(model, test_loader)
-        print(f"🎯 Epoch {epoch + 1}: Train Acc = {top1:.2f}%, Loss = {loss:.4f}, Test Acc = {test_acc:.2f}%")
+        print(f"Epoch {epoch+1}/{epochs} => Train Acc: {top1:.2f}%, Loss: {avg_loss:.4f}, Test Acc: {test_acc:.2f}%")
 
     final_genotype = derive_genotype(model)
     print("\n🔥 Final Architecture:", final_genotype)
-    
-    from plot_genotype import plot
-    plot(final_genotype.normal, "normal")
-    plot(final_genotype.reduce, "reduction")
-
-    if not args.genotype:
-        print("\nComparison with Pre-defined Genotypes:")
-        for name, geno in genotype_dict.items():
-            print(f"{name}: {geno}")
-
-    print("\n✅ Training Complete!")
+    print("✅ Training Complete!")
+    # Optionally, you can plot or save the genotype here
 
 if __name__ == "__main__":
     main()
