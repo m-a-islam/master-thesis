@@ -5,6 +5,8 @@
 /d-darts/D-DARTS/
 __pycache__
 __pycache__/
-*.pth
+/mnist_darts_checkpoint.pth
 
 
+/mnist_darts_checkpoint-nasnet.pth
+/mnist_darts_checkpoint-alt.pth

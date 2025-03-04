@@ -132,7 +132,7 @@ class Cell(nn.Module):
 
 # mc_darts.py
 class MicroDARTS(nn.Module):
-    def __init__(self, init_channels=8, num_classes=10, layers=4, steps=4):
+    def __init__(self, init_channels=16, num_classes=10, layers=4, steps=4):
         super(MicroDARTS, self).__init__()
         self._layers = layers
         self._steps = steps
@@ -235,6 +235,11 @@ def train(model, train_loader, valid_loader, optimizer, criterion, architect, ar
         n = trn_images.size(0)
         objs.update(loss.item(), n)
         top1.update(prec1.item(), n)
+        if step % 10 == 0:
+            alphas = [getattr(model, f'alpha_{i}') for i in range(model._layers)]
+            for i, alpha in enumerate(alphas):
+                print(f"Epoch {epoch} Layer {i} Alpha Values (Softmax):")
+                print(F.softmax(alpha, dim=0).detach().cpu().numpy())
 
     print(f"Epoch {epoch+1} => Train Acc: {top1.avg:.2f}%, Loss: {objs.avg:.4f}")
     return top1.avg, objs.avg
@@ -277,7 +282,8 @@ def derive_genotype(model):
             top2 = chunk_weights.argsort(descending=True)[:2]
             offset += n_choices
             for idx in top2:
-                local_list.append((idx, idx.item()))
+                op_name = SEARCH_SPACE.get_operations('CNN')[idx.item()]
+                local_list.append(op_name)
 
     return Genotype(
         normal=normal,
@@ -309,6 +315,10 @@ def main():
     # Get data loaders
     train_loader, valid_loader, test_loader = get_mnist_loader(batch_size=batch_size)
 
+    for images, labels in train_loader:
+        print(f"should print: [32, 1, 28, 28]")
+        print(images.shape)  # Should be [32, 1, 28, 28]
+        break
     # Build model with smaller config
     model = MicroDARTS(
         init_channels=8,  # reduced

@@ -1,9 +1,11 @@
 # model_search.py
 # Basic search model for CNN operations
+# notes: is the weighted sum of all operations that can be applied to the input edge,
+# where the weights are the learned during the optimization process.
+# The operations are defined in the operations.py file.
 
 import torch
 import torch.nn as nn
-from phylum import SEARCH_SPACE
 from operations import OPS
 class MixedOp(nn.Module):
     def __init__(self, C, stride):

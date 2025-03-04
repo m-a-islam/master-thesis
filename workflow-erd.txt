@@ -33,8 +33,9 @@
        |                      +-------------------+
        v                             |
 +-------------------+         +-------------------+
-| get_mnist_loader  |-------->|    MixedOp        |
-| (Data Prep)       |         | (Op Mixer)        |
+| get_mnist_loader  |-------->|  model_search.py  |
+|                   |         |    MixedOp        |
+| (Data Prep)       |         |     (Op Mixer)    |
 +-------------------+         +-------------------+
 | - train_loader    |         | - _ops            | Eq. 1: ō^(i,j)(x) = Σ α_o^(i,j) · o(x)
 | - valid_loader    |         +-------------------+
