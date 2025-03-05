@@ -17,4 +17,5 @@ class MixedOp(nn.Module):
             self._ops.append(op)
 
     def forward(self, x, weights):
+        print(f"Weights: {weights.shape}")
         return sum(w * op(x) for w, op in zip(weights, self._ops))

@@ -112,61 +112,70 @@ class Cell(nn.Module):
                 stride = 2 if reduction else 1
                 self._ops.append(MixedOp(C_out, stride))
 
-    def forward(self, inputs, weights):
-        # Preprocess each input
-        states = []
-        for i, inp in enumerate(inputs):
-            states.append(self.preprocess[i](inp))
+    def forward(self, inputs, alphas):
+        # alphas shape: [num_edges, n_ops]
+        weights = F.softmax(alphas, dim=-1)  # Softmax over operations
 
+        states = [self.preprocess[i](inp) for i, inp in enumerate(inputs)]
         offset = 0
         for i in range(self.steps):
             cur_states = states[: self.n_inputs + i]
-            cur_weights = weights[offset : offset + len(cur_states)]
-            s = sum(self._ops[offset + j](h, cur_weights[j]) for j, h in enumerate(cur_states))
+            for j, h in enumerate(cur_states):
+                edge_idx = offset + j
+                op_weights = weights[edge_idx]  # [n_ops]
+                s = self._ops[edge_idx](h, op_weights)
+                states.append(s)
             offset += len(cur_states)
-            states.append(s)
-
         return torch.cat(states[-self.n_inputs:], dim=1)
 
 # mc_darts.py
 class MicroDARTS(nn.Module):
     def __init__(self, init_channels=16, num_classes=10, layers=4):
         super().__init__()
+        self._layers = layers
+        self._num_classes = num_classes
+        self.init_channels = init_channels
+        cell_config = SEARCH_SPACE.get_cell_config('CNN')
+        self.n_ops = len(SEARCH_SPACE.get_operations('CNN'))  # Number of operations
+
+        # Stem layer
         self.stem = nn.Sequential(
             nn.Conv2d(1, init_channels, 3, padding=1, bias=False),
             nn.BatchNorm2d(init_channels),
             nn.ReLU()
         )
-        
+
         # Track channels for s0 and s1
         s0_ch = s1_ch = init_channels
-        
         self.cells = nn.ModuleList()
         for i in range(layers):
-            reduction = i in [2]  # Reduction at layer 2
+            reduction = i in cell_config['reduction_cells']
             C_curr = s1_ch * 2 if reduction else s1_ch
-            
+
             cell = Cell([s0_ch, s1_ch], C_curr, reduction)
+            num_edges = len(cell._ops)  # Total edges in this cell
+            # Register alpha as [num_edges, n_ops]
+            self.register_parameter(
+                f'alpha_{i}',
+                nn.Parameter(1e-3 * torch.randn(num_edges, self.n_ops)))
+
             self.cells.append(cell)
-            
-            # Update channel tracking
-            s0_ch, s1_ch = s1_ch, C_curr * 2  # Concatenation doubles channels
-            
-            # Architecture parameters
-            self.register_parameter(f'alpha_{i}', nn.Parameter(1e-3*torch.randn(len(cell._ops))))
+            s0_ch, s1_ch = s1_ch, C_curr * 2  # Update channels
+
+            # Classifier
+            self.global_pooling = nn.AdaptiveAvgPool2d(1)
+            self.classifier = nn.Linear(s1_ch, num_classes)
 
     def forward(self, x):
         s0 = s1 = self.stem(x)
         for i, cell in enumerate(self.cells):
-            weights = F.softmax(getattr(self, f'alpha_{i}'), dim=0)
-            s0, s1 = s1, cell([s0, s1], weights)
-
+            alphas = getattr(self, f'alpha_{i}')  # [num_edges, n_ops]
+            s0, s1 = s1, cell([s0, s1], alphas)
         out = self.global_pooling(s1)
-        logits = self.classifier(out.view(out.size(0), -1))
-        return logits
+        return self.classifier(out.view(out.size(0), -1))
 
     def arch_parameters(self):
-        return [getattr(self, f'alpha_{i}') for i in range(4)]
+        return [getattr(self, f'alpha_{i}') for i in range(self._layers)]
 
     def new(self):
         model_new = MicroDARTS(
