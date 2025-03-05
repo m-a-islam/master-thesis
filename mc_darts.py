@@ -88,31 +88,29 @@ def get_mnist_loader(batch_size=32, data_root="data"):
 # mc_darts.py
 class Cell(nn.Module):
     def __init__(self, input_channels, C_out, reduction=False, steps=4):
-        super(Cell, self).__init__()
+        super().__init__()
         self.reduction = reduction
         self.steps = steps
-        cell_config = SEARCH_SPACE.get_cell_config('CNN')
-        self.n_inputs = cell_config.get('n_inputs', 2)
-        self.input_channels = input_channels
+        self.n_inputs = 2  # Fixed for CNN
 
-        self.preprocess = nn.ModuleList()
-        for ch in self.input_channels:
-            self.preprocess.append(
-                nn.Sequential(
-                    nn.Conv2d(ch, C_out, 1, bias=False),
-                    nn.BatchNorm2d(C_out)
-                )
+        # Preprocessing layers for each input
+        self.preprocess = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(input_channels[0], C_out, 1, bias=False),
+                nn.BatchNorm2d(C_out)
+            ),
+            nn.Sequential(
+                nn.Conv2d(input_channels[1], C_out, 1, bias=False),
+                nn.BatchNorm2d(C_out)
             )
+        ])
 
+        # Build mixed ops
         self._ops = nn.ModuleList()
-        self._indices = []
-        for i in range(self.steps):
+        for i in range(steps):
             for j in range(self.n_inputs + i):
-                # Apply stride=2 to ALL ops in reduction cells
                 stride = 2 if reduction else 1
-                op = MixedOp(C_out, stride)
-                self._ops.append(op)
-                self._indices.append(j)
+                self._ops.append(MixedOp(C_out, stride))
 
     def forward(self, inputs, weights):
         # Preprocess each input
@@ -132,47 +130,30 @@ class Cell(nn.Module):
 
 # mc_darts.py
 class MicroDARTS(nn.Module):
-    def __init__(self, init_channels=16, num_classes=10, layers=4, steps=4):
-        super(MicroDARTS, self).__init__()
-        self._layers = layers
-        self._steps = steps
-        self._num_classes = num_classes
-        self.init_channels = init_channels
-
-        # Stem
+    def __init__(self, init_channels=16, num_classes=10, layers=4):
+        super().__init__()
         self.stem = nn.Sequential(
-            nn.Conv2d(1, init_channels, 3, stride=1, padding=1, bias=False),
+            nn.Conv2d(1, init_channels, 3, padding=1, bias=False),
             nn.BatchNorm2d(init_channels),
-            nn.ReLU(inplace=True)
+            nn.ReLU()
         )
-
-        # Build cells
+        
+        # Track channels for s0 and s1
+        s0_ch = s1_ch = init_channels
+        
         self.cells = nn.ModuleList()
-        cell_config = SEARCH_SPACE.get_cell_config('CNN')
-        n_inputs = cell_config['n_inputs']
-        reduction_cells = cell_config.get('reduction_cells', [2, 5])
-
-        # Track channels of previous two states (s0, s1)
-        s0_channels = init_channels
-        s1_channels = init_channels
-
         for i in range(layers):
-            reduction = i in reduction_cells
-            C_curr = s1_channels  # Current cell's output channels per state
-            if reduction:
-                C_curr *= 2
-            # Input channels are s0 and s1 from previous states
-            input_channels = [s0_channels, s1_channels]
-            cell = Cell(input_channels, C_curr, reduction, steps)
+            reduction = i in [2]  # Reduction at layer 2
+            C_curr = s1_ch * 2 if reduction else s1_ch
+            
+            cell = Cell([s0_ch, s1_ch], C_curr, reduction)
             self.cells.append(cell)
-            num_ops = len(cell._ops)
-            self.register_parameter(f'alpha_{i}', nn.Parameter(torch.randn(num_ops)))
-            # Update s0 and s1 channels for next cell
-            s0_channels = s1_channels
-            s1_channels = C_curr * n_inputs  # Concatenated output channels
-
-        self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(s1_channels, num_classes)
+            
+            # Update channel tracking
+            s0_ch, s1_ch = s1_ch, C_curr * 2  # Concatenation doubles channels
+            
+            # Architecture parameters
+            self.register_parameter(f'alpha_{i}', nn.Parameter(1e-3*torch.randn(len(cell._ops))))
 
     def forward(self, x):
         s0 = s1 = self.stem(x)
@@ -185,14 +166,14 @@ class MicroDARTS(nn.Module):
         return logits
 
     def arch_parameters(self):
-        return [getattr(self, f'alpha_{i}') for i in range(self._layers)]
+        return [getattr(self, f'alpha_{i}') for i in range(4)]
 
     def new(self):
         model_new = MicroDARTS(
             init_channels=self.init_channels,
             num_classes=self._num_classes,
             layers=self._layers,
-            steps=self._steps
+            #steps=self._steps
         ).to(device)
         for x, y in zip(model_new.arch_parameters(), self.arch_parameters()):
             x.data.copy_(y.data)
@@ -304,27 +285,30 @@ def main():
     weight_decay = training_config['weight_decay']
     epochs = 10  # Fewer search epochs if memory is tight
 
+    # Simplified training config
     train_args = SimpleNamespace(
-        lr=lr,
+        lr=0.025,
         momentum=0.9,
-        weight_decay=weight_decay,
+        weight_decay=3e-4,
         arch_learning_rate=3e-4,
-        arch_weight_decay=1e-3
+        arch_weight_decay=1e-3,
+        unrolled=False
     )
 
     # Get data loaders
     train_loader, valid_loader, test_loader = get_mnist_loader(batch_size=batch_size)
 
-    for images, labels in train_loader:
-        print(f"should print: [32, 1, 28, 28]")
-        print(images.shape)  # Should be [32, 1, 28, 28]
+    # Verify data dimensions
+    for x, _ in train_loader:
+        print(f"Input shape: {x.shape}")  # Should be [B,1,28,28]
         break
+
     # Build model with smaller config
     model = MicroDARTS(
         init_channels=8,  # reduced
         num_classes=10,
-        layers=4,         # reduced
-        steps=4
+        layers=4         # reduced
+        #steps=4
     ).to(device)
 
     optimizer = optim.SGD(model.parameters(), lr=train_args.lr, momentum=train_args.momentum, weight_decay=train_args.weight_decay)

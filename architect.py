@@ -28,9 +28,18 @@ class Architect(object):
             self._backward_step(input_valid, target_valid)
         self.optimizer.step()
 
+    #def _backward_step(self, input_valid, target_valid):
+    #    loss = self.model._loss(input_valid, target_valid)
+    #    loss.backward()
+
     def _backward_step(self, input_valid, target_valid):
         loss = self.model._loss(input_valid, target_valid)
         loss.backward()
+        
+        # Debug: Check alpha gradients exist
+        for name, param in self.model.named_parameters():
+            if 'alpha' in name:
+                print(f"{name} grad: {param.grad is not None}")
 
     def _backward_step_unrolled(self, input_train, target_train, input_valid, target_valid, eta, network_optimizer):
         unrolled_model = self._compute_unrolled_model(input_train, target_train, eta, network_optimizer)
