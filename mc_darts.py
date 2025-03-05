@@ -2,7 +2,7 @@
 # Bilevel search logic and main flow specialized for CNN-only on MNIST.
 # Modified to reduce memory usage, reduce the chance of system shutdown, and allow checkpointing.
 
-import torch, os
+import torch, os, onnx
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
@@ -91,52 +91,72 @@ class Cell(nn.Module):
         super().__init__()
         self.reduction = reduction
         self.steps = steps
-        self.n_inputs = 2  # Fixed for CNN
+        self.n_inputs = 2
 
-        # Preprocessing layers for each input
+        # Preprocessing layers use stride=2 for reduction cells
         self.preprocess = nn.ModuleList([
             nn.Sequential(
-                nn.Conv2d(input_channels[0], C_out, 1, bias=False),
+                nn.Conv2d(input_channels[0], C_out, 1,
+                          stride=2 if reduction else 1,  # <-- Add stride
+                          bias=False),
                 nn.BatchNorm2d(C_out)
             ),
             nn.Sequential(
-                nn.Conv2d(input_channels[1], C_out, 1, bias=False),
+                nn.Conv2d(input_channels[1], C_out, 1,
+                          stride=2 if reduction else 1,  # <-- Add stride
+                          bias=False),
                 nn.BatchNorm2d(C_out)
             )
         ])
 
-        # Build mixed ops
+        # Build mixed ops with uniform stride
         self._ops = nn.ModuleList()
         for i in range(steps):
             for j in range(self.n_inputs + i):
-                stride = 2 if reduction else 1
-                self._ops.append(MixedOp(C_out, stride))
+                op_stride = 2 if reduction else 1  # All ops in cell share stride
+                self._ops.append(MixedOp(C_out, op_stride))
 
     def forward(self, inputs, alphas):
         # alphas shape: [num_edges, n_ops]
-        weights = F.softmax(alphas, dim=-1)  # Softmax over operations
+        weights = F.softmax(alphas, dim=-1)
 
-        states = [self.preprocess[i](inp) for i, inp in enumerate(inputs)]
+        states = []
+        for i, inp in enumerate(inputs):
+            processed = self.preprocess[i](inp)
+            #print(f"Preprocessed input {i}: {processed.shape}")  # Debug shape
+            states.append(processed)
+
         offset = 0
         for i in range(self.steps):
             cur_states = states[: self.n_inputs + i]
             for j, h in enumerate(cur_states):
                 edge_idx = offset + j
-                op_weights = weights[edge_idx]  # [n_ops]
+                op_weights = weights[edge_idx]
                 s = self._ops[edge_idx](h, op_weights)
+                #print(f"Op {edge_idx} output: {s.shape}")  # Debug shape
                 states.append(s)
             offset += len(cur_states)
-        return torch.cat(states[-self.n_inputs:], dim=1)
+
+        # Ensure all states have the same spatial dimensions before concatenation
+        target_shape = states[-1].shape[2:]
+        for i in range(len(states)):
+            if states[i].shape[2:] != target_shape:
+                states[i] = F.interpolate(states[i], size=target_shape)
+
+        output = torch.cat(states[-self.n_inputs:], dim=1)
+        #print(f"Final cell output: {output.shape}")  # Debug shape
+        return output
 
 # mc_darts.py
 class MicroDARTS(nn.Module):
-    def __init__(self, init_channels=16, num_classes=10, layers=4):
+    def __init__(self, init_channels=16, num_classes=10, layers=4, steps=4):
         super().__init__()
         self._layers = layers
         self._num_classes = num_classes
+        self._steps = steps  # Add this line
         self.init_channels = init_channels
         cell_config = SEARCH_SPACE.get_cell_config('CNN')
-        self.n_ops = len(SEARCH_SPACE.get_operations('CNN'))  # Number of operations
+        self.n_ops = len(SEARCH_SPACE.get_operations('CNN'))
 
         # Stem layer
         self.stem = nn.Sequential(
@@ -145,7 +165,7 @@ class MicroDARTS(nn.Module):
             nn.ReLU()
         )
 
-        # Track channels for s0 and s1
+        # Track channels
         s0_ch = s1_ch = init_channels
         self.cells = nn.ModuleList()
         for i in range(layers):
@@ -153,18 +173,19 @@ class MicroDARTS(nn.Module):
             C_curr = s1_ch * 2 if reduction else s1_ch
 
             cell = Cell([s0_ch, s1_ch], C_curr, reduction)
-            num_edges = len(cell._ops)  # Total edges in this cell
-            # Register alpha as [num_edges, n_ops]
+            num_edges = len(cell._ops)
             self.register_parameter(
                 f'alpha_{i}',
-                nn.Parameter(1e-3 * torch.randn(num_edges, self.n_ops)))
-
+                nn.Parameter(1e-3 * torch.randn(num_edges, self.n_ops))
+            )
             self.cells.append(cell)
-            s0_ch, s1_ch = s1_ch, C_curr * 2  # Update channels
 
-            # Classifier
-            self.global_pooling = nn.AdaptiveAvgPool2d(1)
-            self.classifier = nn.Linear(s1_ch, num_classes)
+            # Update channels: output is concatenation of n_inputs states
+            s0_ch, s1_ch = s1_ch, C_curr * cell.n_inputs  # <-- Multiply by n_inputs
+
+        # Classifier
+        self.global_pooling = nn.AdaptiveAvgPool2d(1)
+        self.classifier = nn.Linear(s1_ch, num_classes)
 
     def forward(self, x):
         s0 = s1 = self.stem(x)
@@ -182,7 +203,7 @@ class MicroDARTS(nn.Module):
             init_channels=self.init_channels,
             num_classes=self._num_classes,
             layers=self._layers,
-            #steps=self._steps
+            steps=self._steps
         ).to(device)
         for x, y in zip(model_new.arch_parameters(), self.arch_parameters()):
             x.data.copy_(y.data)
@@ -211,7 +232,6 @@ def train(model, train_loader, valid_loader, optimizer, criterion, architect, ar
         val_images, val_targets = val_images.to(device), val_targets.to(device)
 
         # Architecture step (bi-level optimization)
-        # Set unrolled=False to reduce memory usage
         architect.step(trn_images, trn_targets, val_images, val_targets, args.lr, optimizer, unrolled=False)
 
         # Network step
@@ -225,11 +245,6 @@ def train(model, train_loader, valid_loader, optimizer, criterion, architect, ar
         n = trn_images.size(0)
         objs.update(loss.item(), n)
         top1.update(prec1.item(), n)
-        if step % 10 == 0:
-            alphas = [getattr(model, f'alpha_{i}') for i in range(model._layers)]
-            for i, alpha in enumerate(alphas):
-                print(f"Epoch {epoch} Layer {i} Alpha Values (Softmax):")
-                print(F.softmax(alpha, dim=0).detach().cpu().numpy())
 
     print(f"Epoch {epoch+1} => Train Acc: {top1.avg:.2f}%, Loss: {objs.avg:.4f}")
     return top1.avg, objs.avg
@@ -251,35 +266,30 @@ def derive_genotype(model):
     """
     Convert the learned architecture (softmax over alpha weights)
     into a discrete Genotype with normal and reduce structures.
-    This is a simplified approach, since we are CNN-only.
     """
     normal = []
     reduce = []
-    normal_concat = list(range(2, 2 + model._steps))
-    reduce_concat = list(range(2, 2 + model._steps))
-    
+    cell_config = SEARCH_SPACE.get_cell_config('CNN')
+    n_inputs = cell_config['n_inputs']
+    steps = cell_config['n_nodes']  # Assuming 'n_nodes' is defined in search_space.json
+
     for i, cell in enumerate(model.cells):
-        weights = F.softmax(getattr(model, f'alpha_{i}'), dim=0)
-        offset = 0
-        n_inputs = SEARCH_SPACE.get_cell_config('CNN')['n_inputs']
-        steps = cell.steps
+        alphas = getattr(model, f'alpha_{i}')  # Shape: [num_edges, n_ops]
         is_reduce = cell.reduction
         local_list = reduce if is_reduce else normal
 
-        for node in range(steps):
-            n_choices = n_inputs + node
-            chunk_weights = weights[offset : offset + n_choices]
-            top2 = chunk_weights.argsort(descending=True)[:2]
-            offset += n_choices
-            for idx in top2:
-                op_name = SEARCH_SPACE.get_operations('CNN')[idx.item()]
-                local_list.append(op_name)
+        # Iterate over edges and select top operations
+        for edge_idx in range(alphas.shape[0]):
+            edge_weights = F.softmax(alphas[edge_idx], dim=-1)  # [n_ops]
+            top_op_idx = edge_weights.argmax().item()  # Get scalar index
+            op_name = SEARCH_SPACE.get_operations('CNN')[top_op_idx]
+            local_list.append((op_name, edge_idx % n_inputs))  # Assuming 2 inputs
 
     return Genotype(
         normal=normal,
-        normal_concat=normal_concat,
+        normal_concat=list(range(2, 2 + steps)),
         reduce=reduce,
-        reduce_concat=reduce_concat
+        reduce_concat=list(range(2, 2 + steps))
     )
 
 def main():
@@ -308,16 +318,13 @@ def main():
     train_loader, valid_loader, test_loader = get_mnist_loader(batch_size=batch_size)
 
     # Verify data dimensions
-    for x, _ in train_loader:
-        print(f"Input shape: {x.shape}")  # Should be [B,1,28,28]
-        break
 
     # Build model with smaller config
     model = MicroDARTS(
         init_channels=8,  # reduced
         num_classes=10,
-        layers=4         # reduced
-        #steps=4
+        layers=4,        # reduced
+        steps=4
     ).to(device)
 
     optimizer = optim.SGD(model.parameters(), lr=train_args.lr, momentum=train_args.momentum, weight_decay=train_args.weight_decay)
@@ -329,6 +336,8 @@ def main():
     if args.resume:
         start_epoch = load_checkpoint(CHECKPOINT_PATH, model, optimizer)
         print(f"Resuming from epoch {start_epoch}...")
+        save_as_onnx(model)
+
 
     print("✅ Model Initialized. Starting Training...")
     for epoch in range(start_epoch, epochs):
@@ -342,6 +351,38 @@ def main():
     final_genotype = derive_genotype(model)
     print("\n🔥 Final Architecture:", final_genotype)
     print("✅ Training Complete!")
+    save_as_onnx(model)
+
+# Save final model to ONNX format
+def save_as_onnx(model, input_shape=(1, 1, 28, 28), output_path="darts_model.onnx"):
+    # Create dummy input
+    dummy_input = torch.randn(*input_shape).cpu()
+    model.cpu().eval()
+    # Export the model
+    torch.onnx.export(
+        model,  # Model to export
+        dummy_input,  # Example input
+        output_path,  # Output path
+        export_params=True,  # Store trained parameters
+        opset_version=11,  # ONNX opset version
+        do_constant_folding=True,  # Optimize constants
+        input_names=["input"],  # Input name
+        output_names=["output"],  # Output name
+        dynamic_axes={  # Dynamic axes (batch dimension)
+            "input": {0: "batch_size"},
+            "output": {0: "batch_size"}
+        }
+    )
+    print(f"✅ Model saved as ONNX to {output_path}")
 
 if __name__ == "__main__":
+    # torch.onnx.export(model, dummy_input, "moment-in-time.onnx")
+    # model = torch.load(CHECKPOINT_PATH, map_location=device)
+    # dummy_input = torch.randn(1, 1, 28, 28).to(device)
+    # torch.onnx.export(
+    #     model,
+    #     dummy_input,
+    #     'cnn_mnist_model.onnx',
+    #     opset_version=11
+    # )
     main()
