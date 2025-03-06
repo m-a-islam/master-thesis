@@ -336,8 +336,15 @@ def main():
     if args.resume:
         start_epoch = load_checkpoint(CHECKPOINT_PATH, model, optimizer)
         print(f"Resuming from epoch {start_epoch}...")
-        save_as_onnx(model)
-
+        if os.path.exists(CHECKPOINT_PATH):
+            checkpoint = torch.load(CHECKPOINT_PATH, map_location=torch.device('cpu'))
+            model.load_state_dict(checkpoint['model_state'])
+            print(f"✅ Loaded checkpoint from {CHECKPOINT_PATH}")
+            # Save to ONNX
+            save_as_onnx(model, output_path="d_mnist_model.onnx")
+            #save_as_onnx(model)
+        else:
+            print(f"❌ Checkpoint file {CHECKPOINT_PATH} not found")
 
     print("✅ Model Initialized. Starting Training...")
     for epoch in range(start_epoch, epochs):
@@ -354,26 +361,30 @@ def main():
     save_as_onnx(model)
 
 # Save final model to ONNX format
-def save_as_onnx(model, input_shape=(1, 1, 28, 28), output_path="darts_model.onnx"):
+def save_as_onnx(model, input_shape=(1, 1, 28, 28), output_path="daarts_model.onnx"):
     # Create dummy input
     dummy_input = torch.randn(*input_shape).cpu()
     model.cpu().eval()
     # Export the model
-    torch.onnx.export(
-        model,  # Model to export
-        dummy_input,  # Example input
-        output_path,  # Output path
-        export_params=True,  # Store trained parameters
-        opset_version=11,  # ONNX opset version
-        do_constant_folding=True,  # Optimize constants
-        input_names=["input"],  # Input name
-        output_names=["output"],  # Output name
-        dynamic_axes={  # Dynamic axes (batch dimension)
-            "input": {0: "batch_size"},
-            "output": {0: "batch_size"}
-        }
-    )
-    print(f"✅ Model saved as ONNX to {output_path}")
+    try:
+        torch.onnx.export(
+            model,  # Model to export
+            dummy_input,  # Example input
+            output_path,  # Output path
+            export_params=True,  # Store trained parameters
+            opset_version=11,  # ONNX opset version
+            do_constant_folding=True,  # Optimize constants
+            input_names=["input"],  # Input name
+            output_names=["output"],  # Output name
+            dynamic_axes={  # Dynamic axes (batch dimension)
+                "input": {0: "batch_size"},
+                "output": {0: "batch_size"}
+            },
+                dynamo=True
+        )
+        print(f"✅ Model saved as ONNX to {output_path}")
+    except Exception as e:
+        print(f"❌ Error during ONNX export: {e}")
 
 if __name__ == "__main__":
     # torch.onnx.export(model, dummy_input, "moment-in-time.onnx")
@@ -385,4 +396,5 @@ if __name__ == "__main__":
     #     'cnn_mnist_model.onnx',
     #     opset_version=11
     # )
+    
     main()
