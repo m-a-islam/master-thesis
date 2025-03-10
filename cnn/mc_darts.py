@@ -387,14 +387,4 @@ def save_as_onnx(model, input_shape=(1, 1, 28, 28), output_path="daarts_model.on
         print(f"❌ Error during ONNX export: {e}")
 
 if __name__ == "__main__":
-    # torch.onnx.export(model, dummy_input, "moment-in-time.onnx")
-    # model = torch.load(CHECKPOINT_PATH, map_location=device)
-    # dummy_input = torch.randn(1, 1, 28, 28).to(device)
-    # torch.onnx.export(
-    #     model,
-    #     dummy_input,
-    #     'cnn_mnist_model.onnx',
-    #     opset_version=11
-    # )
-    
     main()

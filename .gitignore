@@ -1,11 +1,11 @@
 .idea
 /myenv
-/data
+/cnn/data
 /d-darts/*
 /d-darts/D-DARTS/
 __pycache__
 __pycache__/
-/mnist_darts_checkpoint.pth
+/cnn/mnist_darts_checkpoint.pth
 
 
 /mnist_darts_checkpoint-nasnet.pth
