@@ -1,5 +1,5 @@
 # mc_darts.py
-# Bilevel search logic and main flow specialized for CNN-only on MNIST.
+# Bi-level search logic and main flow specialized for CNN-only on MNIST.
 # Modified to reduce memory usage, reduce the chance of system shutdown, and allow checkpointing.
 
 import torch, os, onnx

@@ -2,25 +2,26 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from mc_darts import MicroDARTS  # Your existing DARTS model
+from mc_darts import MicroDARTS, device  # Your existing DARTS model
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
 # Define PIT-based Convolution Layer
+
 class PITConv(nn.Module):
     def __init__(self, Cin, Cout, kernel_size, max_dilation):
         super().__init__()
         self.conv = nn.Conv2d(Cin, Cout, kernel_size, padding=kernel_size // 2, bias=False)
         self.alpha = nn.Parameter(torch.ones(Cout))  # Channel mask
         self.beta = nn.Parameter(torch.ones(kernel_size))  # Receptive field mask
-        self.gamma = nn.Parameter(torch.ones(int(max_dilation)))  # Dilation mask
+        self.gamma = nn.Parameter(torch.ones(Cout))  # Dilation mask
         self.bn = nn.BatchNorm2d(Cout)
         self.relu = nn.ReLU()
 
     def forward(self, x):
         QA = (self.alpha > 0.5).float().view(-1, 1, 1, 1)
         QB = (self.beta > 0.5).float().view(1, 1, -1, 1)
-        QG = (self.gamma > 0.5).float().view(1, 1, 1, -1)
+        QG = (self.gamma > 0.5).float().view(-1, 1, 1, 1)
 
         # Ensure all masks match the convolutional weights
         QA = QA.expand_as(self.conv.weight)
@@ -38,9 +39,11 @@ class PITDARTS(nn.Module):
     def __init__(self, init_channels=8, num_classes=10, layers=4):
         super().__init__()
         self.layers = nn.ModuleList()
-        for _ in range(layers):
+        self.layers.append(PITConv(1, init_channels, kernel_size=3, max_dilation=4))  # First layer with 1 input channel
+        for _ in range(1, layers):
             self.layers.append(PITConv(init_channels, init_channels * 2, kernel_size=3, max_dilation=4))
-        self.classifier = nn.Linear(init_channels * 2, num_classes)
+            init_channels *= 2
+        self.classifier = nn.Linear(init_channels, num_classes)
 
     def forward(self, x):
         for layer in self.layers:
@@ -116,7 +119,7 @@ def save_pit_model(model, path="mnist_pit_optimized.pth"):
 # Main Function
 def main():
     saved_model_path = "mnist_darts_checkpoint.pth"
-    train_loader = get_mnist_loader(batch_size=32, data_root="data/MNIST")
+    train_loader = get_mnist_loader(batch_size=32, data_root="data")
     
     model = load_pretrained_model(saved_model_path)
     
