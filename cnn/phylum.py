@@ -1,10 +1,19 @@
-import json
+import json, os
 from typing import Dict, List
 
 class SearchSpace:
     def __init__(self, config_path: str = 'search_space.json'):
-        with open(config_path, 'r') as f:
-            self.config = json.load(f)['search_space']
+        print("Current Working Directory:", os.getcwd())
+        print("Config Path:", config_path)
+        try:
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)['search_space']
+        except FileNotFoundError:
+            print(f"FileNotFoundError: The file '{config_path}' was not found.")
+            self.config = {}
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            self.config = {}
         
         self.primitives = {
             'CNN': self.config['CNN_operations'],
