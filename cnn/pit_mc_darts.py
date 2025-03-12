@@ -20,11 +20,18 @@ class PITConv(nn.Module):
     def forward(self, x):
         QA = (self.alpha > 0.5).float().view(-1, 1, 1, 1)
         QB = (self.beta > 0.5).float().view(1, 1, -1, 1)
-        QG = (self.gamma > 0.5).float().view(1, 1, -1, 1)
+        QG = (self.gamma > 0.5).float().view(1, 1, 1, -1)
+
+        # Ensure all masks match the convolutional weights
+        QA = QA.expand_as(self.conv.weight)
+        QB = QB.expand_as(self.conv.weight)
+        QG = QG.expand_as(self.conv.weight)
 
         masked_weights = self.conv.weight * QA * QB * QG
         out = F.conv2d(x, masked_weights, padding=self.conv.padding)
+
         return self.relu(self.bn(out))
+
 
 # Convert DARTS model to PITDARTS
 class PITDARTS(nn.Module):
