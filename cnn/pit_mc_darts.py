@@ -41,20 +41,27 @@ class PITDARTS(nn.Module):
         x = F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
         return self.classifier(x)
 
+# Load MNIST Data
+def get_mnist_loader(batch_size=32, data_root="data/MNIST"):
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))
+    ])
+    train_set = datasets.MNIST(root=data_root, train=True, download=False, transform=transform)
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
+    return train_loader
+
 # Load Pretrained Model
-saved_model_path = "mnist_darts_checkpoint.pth"
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def load_pretrained_model(saved_model_path):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Loading pre-trained DARTS model...")
+    model = MicroDARTS(init_channels=8, num_classes=10, layers=4).to(device)
+    checkpoint = torch.load(saved_model_path, map_location=device)
+    model.load_state_dict(checkpoint['model_state'])
+    print("✅ Pre-trained DARTS model loaded.")
+    return model
 
-print("Loading pre-trained DARTS model...")
-model = MicroDARTS(init_channels=8, num_classes=10, layers=4).to(device)
-checkpoint = torch.load(saved_model_path, map_location=device)
-model.load_state_dict(checkpoint['model_state'])
-print("✅ Pre-trained DARTS model loaded.")
-
-# Convert to PITDARTS model
-print("Converting to PIT-enabled model...")
-pit_model = PITDARTS(init_channels=8, num_classes=10, layers=4).to(device)
-
+# Transfer Weights
 def transfer_weights(old_model, new_model):
     old_dict = old_model.state_dict()
     new_dict = new_model.state_dict()
@@ -63,8 +70,6 @@ def transfer_weights(old_model, new_model):
             new_dict[key] = old_dict[key]
     new_model.load_state_dict(new_dict)
     print("✅ Transferred pre-trained weights to PIT model.")
-
-transfer_weights(model, pit_model)
 
 # Define PIT Regularization
 lambda_pit = 0.01
@@ -87,26 +92,35 @@ def train_pit(model, train_loader, criterion, optimizer):
         loss.backward()
         optimizer.step()
 
-# Load MNIST Data
-def get_mnist_loader(batch_size=32):
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
-    ])
-    train_set = datasets.MNIST(root="data", train=True, download=True, transform=transform)
-    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    return train_loader
-
 # Fine-Tune the PIT Model
-print("Fine-tuning the PIT model...")
-train_loader = get_mnist_loader(batch_size=32)
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(pit_model.parameters(), lr=0.001)
-
-for epoch in range(5):  # Fine-tune for 5 epochs
-    train_pit(pit_model, train_loader, criterion, optimizer)
-    print(f"Epoch {epoch + 1} completed.")
+def fine_tune_pit_model(pit_model, train_loader):
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(pit_model.parameters(), lr=0.001)
+    for epoch in range(5):  # Fine-tune for 5 epochs
+        train_pit(pit_model, train_loader, criterion, optimizer)
+        print(f"Epoch {epoch + 1} completed.")
+    return pit_model
 
 # Save the Optimized Model
-torch.save({'model_state': pit_model.state_dict()}, "mnist_pit_optimized.pth")
-print("✅ PIT-optimized model saved as 'mnist_pit_optimized.pth'")
+def save_pit_model(model, path="mnist_pit_optimized.pth"):
+    torch.save({'model_state': model.state_dict()}, path)
+    print(f"✅ PIT-optimized model saved as '{path}'")
+
+# Main Function
+def main():
+    saved_model_path = "mnist_darts_checkpoint.pth"
+    train_loader = get_mnist_loader(batch_size=32, data_root="data/MNIST")
+    
+    model = load_pretrained_model(saved_model_path)
+    
+    print("Converting to PIT-enabled model...")
+    pit_model = PITDARTS(init_channels=8, num_classes=10, layers=4).to(device)
+    transfer_weights(model, pit_model)
+    
+    print("Fine-tuning the PIT model...")
+    pit_model = fine_tune_pit_model(pit_model, train_loader)
+    
+    save_pit_model(pit_model)
+
+if __name__ == "__main__":
+    main()
