@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from mc_darts import MicroDARTS, device  # Your existing DARTS model
+from mc_darts import MicroDARTS, device
+from normal_cnn import CNN
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
@@ -62,12 +63,15 @@ def get_mnist_loader(batch_size=32, data_root="data/MNIST"):
     return train_loader
 
 # Load Pretrained Model
-def load_pretrained_model(saved_model_path):
+def load_pretrained_model(saved_model_path, model_type="darts"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Loading pre-trained DARTS model...")
-    model = MicroDARTS(init_channels=8, num_classes=10, layers=4).to(device)
+    if model_type == "darts":
+        model = MicroDARTS(init_channels=8, num_classes=10, layers=4).to(device)
+    else:
+        model = CNN().to(device)
     checkpoint = torch.load(saved_model_path, map_location=device)
-    model.load_state_dict(checkpoint['model_state'])
+    model.load_state_dict(checkpoint)
     print("✅ Pre-trained DARTS model loaded.")
     return model
 
@@ -113,15 +117,16 @@ def fine_tune_pit_model(pit_model, train_loader):
 
 # Save the Optimized Model
 def save_pit_model(model, path="mnist_pit_optimized.pth"):
+    print(f"Saving PIT-optimized model to '{path}'...")
     torch.save({'model_state': model.state_dict()}, path)
     print(f"✅ PIT-optimized model saved as '{path}'")
 
 # Main Function
 def main():
-    saved_model_path = "mnist_darts_checkpoint.pth"
+    saved_model_path = "trained-models/mnist_cnn.pth"
     train_loader = get_mnist_loader(batch_size=32, data_root="data")
-    
-    model = load_pretrained_model(saved_model_path)
+    model_type = "cnn"
+    model = load_pretrained_model(saved_model_path, model_type)
     
     print("Converting to PIT-enabled model...")
     pit_model = PITDARTS(init_channels=8, num_classes=10, layers=4).to(device)
@@ -130,7 +135,7 @@ def main():
     print("Fine-tuning the PIT model...")
     pit_model = fine_tune_pit_model(pit_model, train_loader)
     
-    save_pit_model(pit_model)
+    save_pit_model(pit_model, "trained-models/mnist_pit_normal_cnn.pth")
 
 if __name__ == "__main__":
     main()

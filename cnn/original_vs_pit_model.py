@@ -3,13 +3,19 @@ from mc_darts import MicroDARTS, device, evaluate
 from pit_mc_darts import PITDARTS, get_mnist_loader
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, random_split
+from normal_cnn import CNN
 
 
 # Load the original DARTS model
-def load_original_darts_model(saved_model_path):
-    model = MicroDARTS(init_channels=8, num_classes=10, layers=4).to(device)
+def load_original_model(saved_model_path, model_type="darts"):
+    if model_type == "darts":
+        model = MicroDARTS(init_channels=8, num_classes=10, layers=4).to(device)
+    elif model_type == "cnn":
+        model = CNN().to(device)
+    else:
+        raise ValueError("Invalid model type. Choose 'darts' or 'cnn'.")
     checkpoint = torch.load(saved_model_path, map_location=device)
-    model.load_state_dict(checkpoint['model_state'])
+    model.load_state_dict(checkpoint)
     return model
 
 
@@ -42,17 +48,18 @@ def get_mnist_loader(batch_size=32, data_root="data/MNIST"):
 
 # Main function to compare accuracies
 def compare_accuracies():
-    saved_darts_model_path = "mnist_darts_checkpoint.pth"
-    saved_pit_model_path = "mnist_pit_optimized.pth"
+    saved_original_model_path = "trained-models/mnist_cnn.pth"
+    saved_pit_model_path = "trained-models/mnist_pit_normal_cnn.pth"
 
     # Load data
     train_loader, valid_loader, test_loader = get_mnist_loader(batch_size=32, data_root="data")
 
     # Evaluate original DARTS model
-    darts_model = load_original_darts_model(saved_darts_model_path)
+    model_type = "cnn"
+    original_model = load_original_model(saved_original_model_path, model_type)
     print("Evaluating original DARTS model...")
-    darts_valid_acc = evaluate(darts_model, valid_loader, split_name="Valid")
-    darts_test_acc = evaluate(darts_model, test_loader, split_name="Test")
+    darts_valid_acc = evaluate(original_model, valid_loader, split_name="Valid")
+    darts_test_acc = evaluate(original_model, test_loader, split_name="Test")
 
     # Evaluate PIT-optimized model
     pit_model = load_pit_model(saved_pit_model_path)
