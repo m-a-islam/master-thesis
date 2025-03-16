@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.onnx as onnx
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
