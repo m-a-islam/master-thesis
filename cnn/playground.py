@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import os, sys
-
-from plinio.plinio.methods import SuperNet, PIT, MPS
-from plinio.plinio.regularizers import BaseRegularizer
+sys.path.append('plinio/plinio')
+from plinio.methods import SuperNet, PIT, MPS
+from plinio.regularizers import BaseRegularizer
 
 # Load Custom CNN Model from normal_cnn.py
-from cnn.normal_cnn import CNN, get_device, get_data_loaders
+from normal_cnn import CNN, get_device, get_data_loaders
 
 # Define Optimization Type: Choose one -> 'supernet', 'pit', 'mps'
 OPTIMIZATION_METHOD = 'pit'  # Change to 'supernet' or 'mps' if needed
