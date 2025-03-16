@@ -54,7 +54,7 @@ def train_model(model, train_loader, device, epochs=5):
             optimizer.step()
             running_loss += loss.item()
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(train_loader):.4f}")
-    model_path = "trained-models/mnist_cnn.pth"
+    model_path = "trained-models/q_mnist_cnn.pth"
     torch.save(model.state_dict(), model_path)
     print(f"Model saved as {model_path}")
 
