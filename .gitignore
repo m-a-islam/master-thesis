@@ -12,5 +12,7 @@ __pycache__/
 /mnist_darts_checkpoint-nasnet.pth
 /mnist_darts_checkpoint-alt.pth
 /data
+/bou/*
+
 
 cnn/data/MNIST/raw/

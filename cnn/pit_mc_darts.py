@@ -6,6 +6,7 @@ from mc_darts import MicroDARTS, device
 from normal_cnn import CNN
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
+from math import log2
 
 # Define PIT-based Convolution Layer
 
@@ -15,7 +16,7 @@ class PITConv(nn.Module):
         self.conv = nn.Conv2d(Cin, Cout, kernel_size, padding=kernel_size // 2, bias=False)
         self.alpha = nn.Parameter(torch.ones(Cout))  # Channel mask
         self.beta = nn.Parameter(torch.ones(kernel_size))  # Receptive field mask
-        self.gamma = nn.Parameter(torch.ones(Cout))  # Dilation mask
+        self.gamma = nn.Parameter(torch.ones(log2(max_dilation)))  # Dilation mask
         self.bn = nn.BatchNorm2d(Cout)
         self.relu = nn.ReLU()
 
