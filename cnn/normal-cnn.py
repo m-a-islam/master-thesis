@@ -41,6 +41,7 @@ def get_data_loaders():
 def train_model(model, train_loader, device, epochs=5):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
+    os.makedirs("trained-models", exist_ok=True)
     for epoch in range(epochs):
         model.train()
         running_loss = 0.0
@@ -53,22 +54,39 @@ def train_model(model, train_loader, device, epochs=5):
             optimizer.step()
             running_loss += loss.item()
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(train_loader):.4f}")
-    torch.save(model.state_dict(), "mnist_cnn.pth")
-    print("Model saved as mnist_cnn.pth")
+    model_path = "trained-models/mnist_cnn.pth"
+    torch.save(model.state_dict(), model_path)
+    print(f"Model saved as {model_path}")
+
+def evaluate_model(model, test_loader, device):
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    accuracy = 100 * correct / total
+    print(f'Model Accuracy: {accuracy:.2f}%')
 
 def convert_to_onnx(model, device):
     model.eval()
     dummy_input = torch.randn(1, 1, 28, 28).to(device)
-    onnx_filename = "mnist_cnn.onnx"
+    os.makedirs("trained-models/onnx", exist_ok=True)
+    onnx_filename = "trained-models/onnx/mnist_cnn.onnx"
     onnx.export(model, dummy_input, onnx_filename, export_params=True, opset_version=11, do_constant_folding=True,
                 input_names=['input'], output_names=['output'], dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}})
     print(f"Model converted to ONNX format and saved as {onnx_filename}")
 
 def main():
     device = get_device()
-    train_loader, _ = get_data_loaders()
+    train_loader, test_loader = get_data_loaders()
     model = CNN().to(device)
     train_model(model, train_loader, device)
+    evaluate_model(model, test_loader, device)
     convert_to_onnx(model, device)
 
 if __name__ == "__main__":
