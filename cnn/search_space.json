@@ -1,0 +1,33 @@
+{
+  "search_space": {
+    "CNN_operations": [
+      "conv_3x3",
+      "conv_1x1",
+      "max_pool_3x3",
+      "avg_pool_3x3",
+      "skip_connect"
+    ],
+    "cells": {
+      "CNN": {
+        "n_nodes": 4,
+        "n_inputs": 2,
+        "reduction_cells": [2],
+        "channels": {
+          "initial": 16,
+          "steps": [16, 32]
+        }
+      }
+    },
+    "training": {
+      "batch_size": 64,
+      "learning_rate": 0.025,
+      "weight_decay": 3e-4,
+      "epochs": 30
+    },
+    "architecture": {
+      "init_channels": 16,
+      "layers": 4,
+      "auxiliary": false
+    }
+  }
+}
