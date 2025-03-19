@@ -317,8 +317,6 @@ def main():
     # Get data loaders
     train_loader, valid_loader, test_loader = get_mnist_loader(batch_size=batch_size)
 
-    # Verify data dimensions
-
     # Build model with smaller config
     model = MicroDARTS(
         init_channels=8,  # reduced

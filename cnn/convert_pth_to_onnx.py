@@ -27,9 +27,10 @@ def convert_to_onnx(model, output_path="pit_model.onnx"):
     print(f"✅ Model saved as ONNX to {output_path}")
 
 def main():
-    saved_pit_model_path = "mnist_pit_optimized.pth"
+    saved_pit_model_path = "trained-models/mnist_pit_normal_cnn.pth"
     pit_model = load_pit_model(saved_pit_model_path)
-    convert_to_onnx(pit_model)
+    path = "trained-models/onnx/mnist_pit_normal_cnn.onnx"
+    convert_to_onnx(pit_model, path)
 
 if __name__ == "__main__":
     main()
