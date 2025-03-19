@@ -8,7 +8,7 @@ __pycache__
 __pycache__/
 #/cnn/mnist_darts_checkpoint.pth
 
-
+*.pth
 /mnist_darts_checkpoint-nasnet.pth
 /mnist_darts_checkpoint-alt.pth
 /data
