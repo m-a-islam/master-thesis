@@ -1,6 +1,9 @@
 import torch
 import torch.nn.functional as F
 
+from cnn.resNet.resnet_seed import SimpleResNet
+
+
 class MaskedResNet(SimpleResNet):
     def __init__(self, num_blocks, num_classes=10, mask=None):
         super(MaskedResNet, self).__init__(num_blocks, num_classes)
