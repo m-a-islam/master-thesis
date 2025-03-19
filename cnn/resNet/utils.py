@@ -1,4 +1,8 @@
+import torch
 from fvcore.nn import FlopCountAnalysis, parameter_count
+
+from cnn.resNet.mask_resnet import MaskedResNet
+
 
 def calculate_cost(model, input_tensor):
     # Calculate FLOPs and MACs

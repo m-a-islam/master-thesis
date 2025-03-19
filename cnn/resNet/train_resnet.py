@@ -1,5 +1,9 @@
+import torch
+from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+
+from cnn.resNet.utils import masked_resnet
 
 # CIFAR-10 data loader
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
