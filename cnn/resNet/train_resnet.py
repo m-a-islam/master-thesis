@@ -1,9 +1,11 @@
-import torch
+import torch, os, sys
 from torch import nn
-from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from cnn.resNet.utils import masked_resnet
+from cnn.resNet.resnet_example import get_data_loaders
+from cnn.resNet.mask_resnet import MaskedResNet
+from cnn.resNet.utils import calculate_cost
 
 
 def main():
@@ -16,9 +18,11 @@ def main():
     criterion = nn.CrossEntropyLoss()
 
     # CIFAR-10 data loader
-    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-    train_data = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    train_loader = torch.utils.data.DataLoader(train_data, batch_size=64, shuffle=True)
+    #transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    #train_data = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    #train_loader = torch.utils.data.DataLoader(train_data, batch_size=64, shuffle=True)
+
+    train_loader, test_loader = get_data_loaders('./data', 64)
 
     # Example input tensor for CIFAR-10 (3x32x32)
     input_tensor = torch.randn(1, 3, 32, 32).to(device)
@@ -53,7 +57,13 @@ def main():
         # Calculate and print costs (MACs and Size)
         macs, size = calculate_cost(masked_resnet, input_tensor)
         print(f"Epoch {epoch+1}: MACs: {macs}, Model Size: {size:.2f} MB")
-        print(f"Mask values: {masked_resnet.mask.data}")
+
+        # Print mask values
+        for i, mask in enumerate(masked_resnet.mask):
+            if isinstance(mask, torch.Tensor):
+                print(f"Mask {i} values: {mask.data}")
+            else:
+                print(f"Mask {i} is not a tensor, value: {mask}")
 
 # Run the main function
 if __name__ == "__main__":

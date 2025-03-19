@@ -67,4 +67,4 @@ class SimpleResNet(nn.Module):
 
 # Create a simple ResNet with 3 blocks
 resnet_model = SimpleResNet([2, 2, 2])
-print(resnet_model)
+#print(resnet_model)
