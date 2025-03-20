@@ -20,5 +20,5 @@ input_tensor = torch.randn(1, 3, 32, 32)
 masked_resnet = MaskedResNet([2, 2, 2])
 
 # Calculate cost for the masked model
-macs, size = calculate_cost(masked_resnet, input_tensor)
-print(f"MACs: {macs}, Model Size: {size:.2f} MB")
+#macs, size = calculate_cost(masked_resnet, input_tensor)
+#print(f"MACs: {macs}, Model Size: {size:.2f} MB")
