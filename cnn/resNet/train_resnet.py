@@ -1,4 +1,8 @@
+import logging
+
 import torch, os, sys
+import matplotlib.pyplot as plt
+import numpy as np
 from torch import nn
 from torchvision import datasets, transforms
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -7,6 +11,9 @@ from cnn.resNet.resnet_example import get_data_loaders
 from cnn.resNet.mask_resnet import MaskedResNet
 from cnn.resNet.utils import calculate_cost
 
+#initialize logger
+logging.basicConfig(filename="output/network_architecture.log", level=logging.INFO)
+logger = logging.getLogger()
 
 def main():
     # Set device
@@ -26,6 +33,14 @@ def main():
 
     # Example input tensor for CIFAR-10 (3x32x32)
     input_tensor = torch.randn(1, 3, 32, 32).to(device)
+
+    epoch_list = []
+    loss_list = []
+    accuracy_list = []
+    mask_values_list = []
+
+    logger.info(f"Initial network before training:")
+    logger.info(str(masked_resnet))
 
     # Training loop (10 epochs)
     for epoch in range(10):
@@ -58,12 +73,55 @@ def main():
         macs, size = calculate_cost(masked_resnet, input_tensor)
         print(f"Epoch {epoch+1}: MACs: {macs}, Model Size: {size:.2f} MB")
 
+        logger.info(f"Final network after training:")
+        logger.info(str(masked_resnet))
+        # Log epoch data
+        epoch_list.append(epoch + 1)
+        loss_list.append(running_loss / len(train_loader))
+        accuracy_list.append(100 * correct / total)
+        mask_values_list.append(masked_resnet.mask.data.cpu().numpy())
+
         # Print mask values
         for i, mask in enumerate(masked_resnet.mask):
             if isinstance(mask, torch.Tensor):
                 print(f"Mask {i} values (learnable tensor): {mask.data}")
             else:
                 print(f"Mask {i} is not a tensor, value: {mask}")
+
+        plot_logs(epoch_list, loss_list, accuracy_list, mask_values_list)
+
+def plot_logs(epochs, loss, accuracy, mask_values):
+    plt.figure(figsize=(12, 4))
+
+    # Plot loss
+    plt.subplot(1, 3, 1)
+    plt.plot(epochs, loss, label='Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training Loss')
+    plt.legend()
+
+    # Plot accuracy
+    plt.subplot(1, 3, 2)
+    plt.plot(epochs, accuracy, label='Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy (%)')
+    plt.title('Training Accuracy')
+    plt.legend()
+
+    # Plot mask values
+    plt.subplot(1, 3, 3)
+    mask_values = np.array(mask_values)
+    for i in range(mask_values.shape[1]):
+        plt.plot(epochs, mask_values[:, i], label=f'Mask {i}')
+    plt.xlabel('Epoch')
+    plt.ylabel('Mask Value')
+    plt.title('Mask Values')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.savefig('saved_model/masked_metrics_plot.png')
+    plt.show()
 
 # Run the main function
 if __name__ == "__main__":

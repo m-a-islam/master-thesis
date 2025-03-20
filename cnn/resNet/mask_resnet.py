@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from cnn.resNet.resnet_seed import SimpleResNet
 
+
 class MaskedResNet(SimpleResNet):
     def __init__(self, num_blocks, num_classes=10, mask=None):
         super(MaskedResNet, self).__init__(num_blocks, num_classes)
@@ -15,12 +16,13 @@ class MaskedResNet(SimpleResNet):
         x = self.relu(x)
 
         #debug
-        print(f"Before sigmoid - Mask Values: {self.mask.data}")
+        #print(f"Before sigmoid - Mask Values: {self.mask.data}")
         maks_1 = self.sigmoid(self.mask[0])
         mask_2 = self.sigmoid(self.mask[1])
         mask_3 = self.sigmoid(self.mask[2])
-        print(f"After sigmoid - Mask Values: {maks_1}, {mask_2}, {mask_3}")
-
+        #print(f"After sigmoid - Mask Values: {maks_1}, {mask_2}, {mask_3}")
+        #print(f"Network Before")
+        #print(self)
         # Apply mask on each layer
         if maks_1 > 0.5:
             x = self.layer1(x)
@@ -37,6 +39,9 @@ class MaskedResNet(SimpleResNet):
         else:
             x = x.clone()  # Ensure the layer is called
 
+
+        #print(f"Network After")
+        #print(self)
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.fc(x)
