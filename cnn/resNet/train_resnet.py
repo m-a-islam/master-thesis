@@ -61,7 +61,7 @@ def main():
         # Print mask values
         for i, mask in enumerate(masked_resnet.mask):
             if isinstance(mask, torch.Tensor):
-                print(f"Mask {i} values: {mask.data}")
+                print(f"Mask {i} values (learnable tensor): {mask.data}")
             else:
                 print(f"Mask {i} is not a tensor, value: {mask}")
 
