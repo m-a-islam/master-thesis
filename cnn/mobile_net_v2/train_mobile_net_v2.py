@@ -1,29 +1,14 @@
-import torch
+import torch, sys, os
 import torch.nn as nn
-import torch.nn.functional as F
 import logging
-from torchvision import datasets, transforms
-from fvcore.nn import FlopCountAnalysis, parameter_count
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from mask_mobile_net import MobileNetV2
+from cnn.resNet.utils import calculate_cost
+from cnn.resNet.resnet_example import get_data_loaders
 
 # Initialize logger
-logging.basicConfig(filename='mobilenetv2_architecture.log', level=logging.INFO)
+logging.basicConfig(filename='output/mobilenetv2_architecture.log', level=logging.INFO)
 logger = logging.getLogger()
-
-
-
-
-# Calculate FLOPs, MACs, and model size
-def calculate_cost(model, input_tensor):
-    # Calculate FLOPs and MACs
-    flops = FlopCountAnalysis(model, input_tensor)
-    macs = flops.total()
-    
-    # Calculate parameter size (model size)
-    params = parameter_count(model)
-    size_in_MB = sum(params.values()) * 4 / 1024 / 1024  # assuming 4 bytes per parameter
-
-    return macs, size_in_MB
-
 
 def main():
     # Set device

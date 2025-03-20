@@ -15,4 +15,5 @@ __pycache__/
 /bou/*
 
 cnn/resNet/data/*
+cnn/mobile_net_v2/data/*
 cnn/data/MNIST/raw/

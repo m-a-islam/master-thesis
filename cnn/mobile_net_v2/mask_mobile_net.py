@@ -1,4 +1,10 @@
 # MobileNetV2 Architecture
+import torch
+from torch import nn
+
+from seed_mobile_net import InvertedResidual
+
+
 class MobileNetV2(nn.Module):
     def __init__(self, num_classes=10):
         super(MobileNetV2, self).__init__()
@@ -42,8 +48,8 @@ class MobileNetV2(nn.Module):
         mask_7 = torch.sigmoid(self.mask[6])
 
         # Log initial network before applying masks
-        logger.info("Network before applying mask:")
-        logger.info(str(self))
+        #logger.info("Network before applying mask:")
+        #logger.info(str(self))
 
         if mask_1 > 0.5: x = self.block1(x)
         if mask_2 > 0.5: x = self.block2(x)
@@ -62,7 +68,7 @@ class MobileNetV2(nn.Module):
         x = self.fc(x)
 
         # Log network after applying masks
-        logger.info("Network after applying mask:")
-        logger.info(str(self))
+        #logger.info("Network after applying mask:")
+        #logger.info(str(self))
 
         return x

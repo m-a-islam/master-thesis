@@ -1,4 +1,4 @@
-import torch, sys, json
+import torch, sys, json, os
 import torch.nn as nn
 import matplotlib
 import matplotlib.pyplot as plt
@@ -16,6 +16,8 @@ def get_device():
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def get_data_loaders(data_dir, batch_size=64):
+    abs_data_dir = os.path.abspath(data_dir)
+    print(f"Using dataset directory: {abs_data_dir}")
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))

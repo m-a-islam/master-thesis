@@ -1,4 +1,7 @@
 # MobileNetV2 Block (InvertedResidual)
+from torch import nn
+
+
 class InvertedResidual(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1, expansion=6):
         super(InvertedResidual, self).__init__()
