@@ -1,0 +1,114 @@
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+MACs: 1618482176, Model Size: 210.91 MB
+Epoch 1, Loss: 1.3205196500739174, Accuracy: 51.888%
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+Epoch 1: MACs: 1618482176, Model Size: 210.91 MB
+Mask 0 is not a tensor, value: True
+Mask 1 is not a tensor, value: True
+Mask 2 is not a tensor, value: True
+Mask 3 is not a tensor, value: True
+Mask 4 is not a tensor, value: True
+Mask 5 is not a tensor, value: True
+Epoch 2, Loss: 0.8482034700682096, Accuracy: 70.03%
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+Epoch 2: MACs: 1618482176, Model Size: 210.91 MB
+Mask 0 is not a tensor, value: True
+Mask 1 is not a tensor, value: True
+Mask 2 is not a tensor, value: True
+Mask 3 is not a tensor, value: True
+Mask 4 is not a tensor, value: True
+Mask 5 is not a tensor, value: True
+Epoch 3, Loss: 0.6510302234641121, Accuracy: 77.148%
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+Epoch 3: MACs: 1618482176, Model Size: 210.91 MB
+Mask 0 is not a tensor, value: True
+Mask 1 is not a tensor, value: True
+Mask 2 is not a tensor, value: True
+Mask 3 is not a tensor, value: True
+Mask 4 is not a tensor, value: True
+Mask 5 is not a tensor, value: True
+Epoch 4, Loss: 0.5044208680996505, Accuracy: 82.586%
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+Epoch 4: MACs: 1618482176, Model Size: 210.91 MB
+Mask 0 is not a tensor, value: True
+Mask 1 is not a tensor, value: True
+Mask 2 is not a tensor, value: True
+Mask 3 is not a tensor, value: True
+Mask 4 is not a tensor, value: True
+Mask 5 is not a tensor, value: True
+Epoch 5, Loss: 0.41172954857425614, Accuracy: 85.756%
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+Epoch 5: MACs: 1618482176, Model Size: 210.91 MB
+Mask 0 is not a tensor, value: True
+Mask 1 is not a tensor, value: True
+Mask 2 is not a tensor, value: True
+Mask 3 is not a tensor, value: True
+Mask 4 is not a tensor, value: True
+Mask 5 is not a tensor, value: True
+Epoch 6, Loss: 0.3308889485724137, Accuracy: 88.546%
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+Epoch 6: MACs: 1618482176, Model Size: 210.91 MB
+Mask 0 is not a tensor, value: True
+Mask 1 is not a tensor, value: True
+Mask 2 is not a tensor, value: True
+Mask 3 is not a tensor, value: True
+Mask 4 is not a tensor, value: True
+Mask 5 is not a tensor, value: True
+Epoch 7, Loss: 0.2546406397286355, Accuracy: 91.11%
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+Epoch 7: MACs: 1618482176, Model Size: 210.91 MB
+Mask 0 is not a tensor, value: True
+Mask 1 is not a tensor, value: True
+Mask 2 is not a tensor, value: True
+Mask 3 is not a tensor, value: True
+Mask 4 is not a tensor, value: True
+Mask 5 is not a tensor, value: True
+Epoch 8, Loss: 0.2015128726106318, Accuracy: 92.854%
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+Epoch 8: MACs: 1618482176, Model Size: 210.91 MB
+Mask 0 is not a tensor, value: True
+Mask 1 is not a tensor, value: True
+Mask 2 is not a tensor, value: True
+Mask 3 is not a tensor, value: True
+Mask 4 is not a tensor, value: True
+Mask 5 is not a tensor, value: True
+Epoch 9, Loss: 0.14967077143390276, Accuracy: 94.768%
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+Epoch 9: MACs: 1618482176, Model Size: 210.91 MB
+Mask 0 is not a tensor, value: True
+Mask 1 is not a tensor, value: True
+Mask 2 is not a tensor, value: True
+Mask 3 is not a tensor, value: True
+Mask 4 is not a tensor, value: True
+Mask 5 is not a tensor, value: True
+Epoch 10, Loss: 0.11338925439759594, Accuracy: 95.964%
+Unsupported operator aten::add_ encountered 22 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+layer1.1.skip_connection, layer2.1.skip_connection, layer3.1.skip_connection
+Epoch 10: MACs: 1618482176, Model Size: 210.91 MB
+Mask 0 is not a tensor, value: True
+Mask 1 is not a tensor, value: True
+Mask 2 is not a tensor, value: True
+Mask 3 is not a tensor, value: True
+Mask 4 is not a tensor, value: True
+Mask 5 is not a tensor, value: True
