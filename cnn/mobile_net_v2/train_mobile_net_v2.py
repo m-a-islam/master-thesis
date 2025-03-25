@@ -14,52 +14,40 @@ logging.basicConfig(filename='output/mobilenetv2_architecture.log', level=loggin
 logger = logging.getLogger()
 
 def calculate_block_contributions(model, input_size=(2, 3, 32, 32)):
-    # Determine the device from the model's parameters
+    # Get the device of the model
     device = next(model.parameters()).device
-    
     # Create a dummy input tensor
     dummy_input = torch.randn(input_size).to(device)
     
-    # Lists to store MACs and parameters for each block
+    # Profile initial layers (conv1, bn1, relu)
+    initial_layers = nn.Sequential(model.conv1, model.bn1, model.relu)
+    macs_initial, _ = profile(initial_layers, inputs=(dummy_input,), verbose=False)
+    params_initial = sum(p.numel() for p in initial_layers.parameters())
+    
+    # Pass input through initial layers
+    x = initial_layers(dummy_input)
+    
+    # Define and profile each block sequentially
+    blocks = [model.block1, model.block2, model.block3, model.block4, 
+              model.block5, model.block6, model.block7]
     macs_blocks = []
     params_blocks = []
     
-    # Define the blocks to profile (adjust based on your model definition)
-    blocks = [model.block1, model.block2, model.block3, model.block4, 
-              model.block5, model.block6, model.block7]
-    
-    # Handle any mask-related logic if present (adjust as needed)
-    if hasattr(model, 'mask'):
-        original_masks = model.mask.data.clone()
-        model.mask.data.fill_(10.0)  # Assuming sigmoid(10) ≈ 1
-
-    # Process the input through the initial layers
-    x = model.conv1(dummy_input)  # Transforms [1, 3, 32, 32] to [1, 32, 32, 32]
-    x = model.bn1(x)
-    x = model.relu(x)
-    
-    # Profile each block sequentially
     for block in blocks:
-        # Calculate MACs for the current block
         macs, _ = profile(block, inputs=(x,), verbose=False)
         macs_blocks.append(macs)
-        
-        # Calculate the number of parameters in the block
         params = sum(p.numel() for p in block.parameters())
         params_blocks.append(params)
-        
-        # Update the input for the next block
-        x = block(x)
+        x = block(x)  # Update the input for the next block
     
-    # Restore original masks if they were modified
-    if hasattr(model, 'mask'):
-        model.mask.data.copy_(original_masks)
+    # Profile final layers (conv2, bn2, avgpool, fc)
+    final_layers = nn.Sequential(model.conv2, model.bn2, model.avgpool, model.fc)
+    macs_final, _ = profile(final_layers, inputs=(x,), verbose=False)
+    params_final = sum(p.numel() for p in final_layers.parameters())
     
-    # Profile the fixed parts (initial and final layers)
-    fixed_parts = nn.Sequential(model.conv1, model.bn1, model.relu,
-                                model.conv2, model.bn2, model.avgpool, model.fc)
-    macs_fixed, _ = profile(fixed_parts, inputs=(dummy_input,), verbose=False)
-    params_fixed = sum(p.numel() for p in fixed_parts.parameters())
+    # Combine initial and final contributions into fixed parts
+    macs_fixed = macs_initial + macs_final
+    params_fixed = params_initial + params_final
     
     return macs_blocks, params_blocks, macs_fixed, params_fixed
 
