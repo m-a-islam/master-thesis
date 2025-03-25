@@ -29,7 +29,7 @@ def main():
 
     # Log initial network structure
     logger.info("Initial Network (before training):")
-    logger.info(str(masked_mobilenetv2))
+    logger.info(masked_mobilenetv2.get_network_description())
 
     # Training loop (10 epochs)
     num_epochs = 10
@@ -71,7 +71,7 @@ def main():
 
     # Log the final architecture
     logger.info("Final Network (after training):")
-    logger.info(str(masked_mobilenetv2))
+    logger.info(masked_mobilenetv2.get_network_description())
 
 
 if __name__ == "__main__":

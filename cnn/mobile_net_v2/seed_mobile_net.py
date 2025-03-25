@@ -3,10 +3,11 @@ from torch import nn
 
 
 class InvertedResidual(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, expansion=6):
+    def __init__(self, in_channels, out_channels, stride=1, expansion=6, mask=None):
         super(InvertedResidual, self).__init__()
         self.stride = stride
         self.use_res_connect = self.stride == 1 and in_channels == out_channels
+        self.mask = mask
 
         # First convolution (1x1 expansion)
         self.conv1 = nn.Conv2d(in_channels, in_channels * expansion, kernel_size=1, bias=False)
@@ -31,7 +32,13 @@ class InvertedResidual(nn.Module):
         x = self.relu(x)
         x = self.conv3(x)
         x = self.bn3(x)
-        
+
+        if self.mask is not None:
+            weight = self.conv3.weight # get the weight of the last convolution
+            weight = self.mask * weight # apply the mask to weights
+            self.conv3.weight.data = weight # set the modified weights back
+            #x = x * self.mask # element wise multiplication with mask zero-out channels
+
         if self.use_res_connect:
             x += identity
         return x

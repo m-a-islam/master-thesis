@@ -15,7 +15,7 @@ class MobileNetV2(nn.Module):
         self.relu = nn.ReLU6(inplace=True)
 
         # MobileNetV2 blocks
-        self.block1 = InvertedResidual(32, 16, stride=1)
+        self.block1 = InvertedResidual(32, 16, stride=1, mask=None)
         self.block2 = InvertedResidual(16, 24, stride=2)
         self.block3 = InvertedResidual(24, 32, stride=2)
         self.block4 = InvertedResidual(32, 64, stride=2)
@@ -30,7 +30,7 @@ class MobileNetV2(nn.Module):
         self.fc = nn.Linear(1280, num_classes)
 
         # Masks for each block, initialized to 1 (will be learned)
-        self.mask = nn.Parameter(torch.ones(7))  # 7 layers (block1 to block7)
+        self.mask = nn.Parameter(torch.ones(7, 1, 1))  # 7 layers (block1 to block7)
 
     def forward(self, x):
         # Apply initial convolution
@@ -39,25 +39,33 @@ class MobileNetV2(nn.Module):
         x = self.relu(x)
 
         # Apply each MobileNetV2 block based on mask values
-        mask_1 = torch.sigmoid(self.mask[0])
-        mask_2 = torch.sigmoid(self.mask[1])
-        mask_3 = torch.sigmoid(self.mask[2])
-        mask_4 = torch.sigmoid(self.mask[3])
-        mask_5 = torch.sigmoid(self.mask[4])
-        mask_6 = torch.sigmoid(self.mask[5])
-        mask_7 = torch.sigmoid(self.mask[6])
+        # mask_1 = torch.sigmoid(self.mask[0])
+        # mask_2 = torch.sigmoid(self.mask[1])
+        # mask_3 = torch.sigmoid(self.mask[2])
+        # mask_4 = torch.sigmoid(self.mask[3])
+        # mask_5 = torch.sigmoid(self.mask[4])
+        # mask_6 = torch.sigmoid(self.mask[5])
+        # mask_7 = torch.sigmoid(self.mask[6])
 
         # Log initial network before applying masks
         #logger.info("Network before applying mask:")
         #logger.info(str(self))
 
-        if mask_1 > 0.5: x = self.block1(x)
-        if mask_2 > 0.5: x = self.block2(x)
-        if mask_3 > 0.5: x = self.block3(x)
-        if mask_4 > 0.5: x = self.block4(x)
-        if mask_5 > 0.5: x = self.block5(x)
-        if mask_6 > 0.5: x = self.block6(x)
-        if mask_7 > 0.5: x = self.block7(x)
+        # if mask_1 > 0.5: x = self.block1(x)
+        # if mask_2 > 0.5: x = self.block2(x)
+        # if mask_3 > 0.5: x = self.block3(x)
+        # if mask_4 > 0.5: x = self.block4(x)
+        # if mask_5 > 0.5: x = self.block5(x)
+        # if mask_6 > 0.5: x = self.block6(x)
+        # if mask_7 > 0.5: x = self.block7(x)
+
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        x = self.block4(x)
+        x = self.block5(x)
+        x = self.block6(x)
+        x = self.block7(x)
 
         # Apply the final layers
         x = self.conv2(x)
@@ -72,3 +80,26 @@ class MobileNetV2(nn.Module):
         #logger.info(str(self))
 
         return x
+
+    def get_network_description(self):
+        """Function to generate a layer-by-layer description of the network."""
+        description = "Input → Conv1 → BN1 → ReLU → "
+
+        # For each block, include it if the mask is applied
+        if torch.sigmoid(self.mask[0]) > 0.5:
+            description += "Block1 → "
+        if torch.sigmoid(self.mask[1]) > 0.5:
+            description += "Block2 → "
+        if torch.sigmoid(self.mask[2]) > 0.5:
+            description += "Block3 → "
+        if torch.sigmoid(self.mask[3]) > 0.5:
+            description += "Block4 → "
+        if torch.sigmoid(self.mask[4]) > 0.5:
+            description += "Block5 → "
+        if torch.sigmoid(self.mask[5]) > 0.5:
+            description += "Block6 → "
+        if torch.sigmoid(self.mask[6]) > 0.5:
+            description += "Block7 → "
+
+        description += "AvgPool → FullyConnected → Output"
+        return description
