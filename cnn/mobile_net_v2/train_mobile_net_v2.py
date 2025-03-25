@@ -69,6 +69,9 @@ def main():
 
         print(f"Epoch {epoch + 1}: MACs: {macs}, Model Size: {size:.2f} MB")
 
+        # Check constraints and apply pruning if necessary
+        masked_mobilenetv2.check_constraints(macs, size)
+        
     # Log the final architecture
     logger.info("Final Network (after training):")
     logger.info(masked_mobilenetv2.get_network_description())

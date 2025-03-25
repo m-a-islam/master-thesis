@@ -6,13 +6,16 @@ from seed_mobile_net import InvertedResidual
 
 
 class MobileNetV2(nn.Module):
-    def __init__(self, num_classes=10):
+    def __init__(self, num_classes=10, size_threshold=5.0, mac_threshold=5.0):
         super(MobileNetV2, self).__init__()
         
         # Initial conv layer
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(32)
         self.relu = nn.ReLU6(inplace=True)
+
+        self.size_threshold = size_threshold  # MB
+        self.mac_threshold = mac_threshold  # MACs
 
         # MobileNetV2 blocks
         self.block1 = InvertedResidual(32, 16, stride=1, mask=None)
@@ -103,3 +106,17 @@ class MobileNetV2(nn.Module):
 
         description += "AvgPool → FullyConnected → Output"
         return description
+    
+
+    def check_constraints(self, macs, size):
+        """Check if the model's MACs and size exceed the defined thresholds, and adjust mask accordingly."""
+        if size > self.size_threshold:  # If model size exceeds threshold
+            self.apply_pruning_threshold()
+        if macs > self.mac_threshold:  # If MACs exceed threshold
+            self.apply_pruning_threshold()
+
+    def apply_pruning_threshold(self):
+        """Apply pruning based on current thresholds (for both MACs and size)."""
+        with torch.no_grad():
+            # Reduce the mask (prune) if model size or MACs exceed thresholds
+            self.mask.data = self.mask.data * 0.9  # Prune (reduce) the mask values to enforce sparsity
