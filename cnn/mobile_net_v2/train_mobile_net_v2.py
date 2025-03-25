@@ -129,11 +129,8 @@ def main():
     #             print(f"Parameter {p.device}, exp_avg: {state['exp_avg'].device}")
 
 
-    # Dummy train_loader (replace with actual data loader)
-    from torch.utils.data import DataLoader, TensorDataset
-    dummy_data = torch.randn(1000, 3, 32, 32)
-    dummy_labels = torch.randint(0, 10, (1000,))
-    train_loader = DataLoader(TensorDataset(dummy_data, dummy_labels), batch_size=32, shuffle=True)
+
+    train_loader, _ = get_data_loaders('./data')
 
     # Precompute MACs and parameter contributions
     macs_blocks, params_blocks, macs_fixed, params_fixed = calculate_block_contributions(model)
