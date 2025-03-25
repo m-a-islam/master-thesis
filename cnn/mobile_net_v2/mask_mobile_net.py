@@ -22,13 +22,13 @@ class MobileNetV2(nn.Module):
         self.mask = nn.Parameter(torch.ones(7))  # Shape (7,)
 
         # Inverted Residual blocks with corresponding masks
-        self.block1 = InvertedResidual(32, 16, stride=1, mask=self.mask[0])
-        self.block2 = InvertedResidual(16, 24, stride=2, mask=self.mask[1])
-        self.block3 = InvertedResidual(24, 32, stride=2, mask=self.mask[2])
-        self.block4 = InvertedResidual(32, 64, stride=2, mask=self.mask[3])
-        self.block5 = InvertedResidual(64, 96, stride=1, mask=self.mask[4])
-        self.block6 = InvertedResidual(96, 160, stride=2, mask=self.mask[5])
-        self.block7 = InvertedResidual(160, 320, stride=1, mask=self.mask[6])
+        self.block1 = InvertedResidual(32, 16, stride=1, mask=self.mask, mask_index=0)
+        self.block2 = InvertedResidual(16, 24, stride=2, mask=self.mask, mask_index=1)
+        self.block3 = InvertedResidual(24, 32, stride=2, mask=self.mask, mask_index=2)
+        self.block4 = InvertedResidual(32, 64, stride=2, mask=self.mask, mask_index=3)
+        self.block5 = InvertedResidual(64, 96, stride=1, mask=self.mask, mask_index=4)
+        self.block6 = InvertedResidual(96, 160, stride=2, mask=self.mask, mask_index=5)
+        self.block7 = InvertedResidual(160, 320, stride=1, mask=self.mask, mask_index=6)
 
         # Final layers (fixed part)
         self.conv2 = nn.Conv2d(320, 1280, kernel_size=1, stride=1, padding=0, bias=False)

@@ -48,7 +48,10 @@ def calculate_block_contributions(model, input_size=(2, 3, 32, 32)):
     # Combine initial and final contributions into fixed parts
     macs_fixed = macs_initial + macs_final
     params_fixed = params_initial + params_final
-    
+    print(f"macs_blocks: {macs_blocks}")
+    print(f"params_blocks: {params_blocks}")
+    print(f"macs_fixed: {macs_fixed}")
+    print(f"params_fixed: {params_fixed}")
     return macs_blocks, params_blocks, macs_fixed, params_fixed
 
 def train_with_constraints(model, train_loader, criterion, optimizer, device, 
@@ -87,11 +90,6 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
         loss = classification_loss + lambda_macs * macs_penalty + lambda_size * size_penalty
         loss.backward()
 
-        for name, param in model.named_parameters():
-            if param.grad is not None:
-                print(f"{name}: grad device: {param.grad.device}")
-            else:
-                print(f"{name} has no gradient!")
 
 
         optimizer.step()

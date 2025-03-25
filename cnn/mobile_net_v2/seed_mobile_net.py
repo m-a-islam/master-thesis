@@ -4,11 +4,12 @@ from torch import nn
 
 
 class InvertedResidual(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, expansion=6, mask=None):
+    def __init__(self, in_channels, out_channels, stride=1, expansion=6, mask=None, mask_index=None):
         super(InvertedResidual, self).__init__()
         self.stride = stride
         self.use_res_connect = self.stride == 1 and in_channels == out_channels
         self.mask = mask  # Learnable mask for this block
+        self.mask_index = mask_index
 
         # Expansion convolution
         self.conv1 = nn.Conv2d(in_channels, in_channels * expansion, kernel_size=1, bias=False)
@@ -36,12 +37,13 @@ class InvertedResidual(nn.Module):
         out = self.bn3(out)
 
         # Apply mask scaling (differentiable)
-        if self.mask is not None:
-            mask_value = torch.sigmoid(self.mask)
+        if self.mask is not None and self.mask_index is not None:
+            mask_value = torch.sigmoid(self.mask[self.mask_index])
             if self.use_res_connect:
                 return identity + mask_value * out
             else:
                 return mask_value * out
+
         else:
             if self.use_res_connect:
                 return identity + out

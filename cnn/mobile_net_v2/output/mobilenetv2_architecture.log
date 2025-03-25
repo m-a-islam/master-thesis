@@ -1,0 +1,40 @@
+INFO:root:Epoch 1: Loss: 6.1489, Accuracy: 40.15%, MACs: 9.52e+06, Size: 3.84 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 2: Loss: 5.7832, Accuracy: 54.98%, MACs: 9.54e+06, Size: 3.84 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 3: Loss: 5.6381, Accuracy: 61.82%, MACs: 9.56e+06, Size: 3.84 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 4: Loss: 5.5155, Accuracy: 66.27%, MACs: 9.54e+06, Size: 3.83 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 5: Loss: 5.4129, Accuracy: 69.59%, MACs: 9.54e+06, Size: 3.84 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 6: Loss: 5.3370, Accuracy: 72.18%, MACs: 9.53e+06, Size: 3.85 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 7: Loss: 5.2439, Accuracy: 74.33%, MACs: 9.51e+06, Size: 3.84 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 8: Loss: 5.2228, Accuracy: 76.10%, MACs: 9.54e+06, Size: 3.84 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 9: Loss: 5.1873, Accuracy: 77.62%, MACs: 9.50e+06, Size: 3.85 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 10: Loss: 5.0639, Accuracy: 78.89%, MACs: 9.44e+06, Size: 3.85 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 1: Loss: 6.0899, Accuracy: 40.61%, MACs: 9.48e+06, Size: 3.85 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 2: Loss: 5.7580, Accuracy: 54.31%, MACs: 9.47e+06, Size: 3.83 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 3: Loss: 5.5835, Accuracy: 60.82%, MACs: 9.48e+06, Size: 3.83 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 4: Loss: 5.4710, Accuracy: 65.18%, MACs: 9.47e+06, Size: 3.81 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 5: Loss: 5.4008, Accuracy: 68.43%, MACs: 9.50e+06, Size: 3.82 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 6: Loss: 5.3253, Accuracy: 71.24%, MACs: 9.51e+06, Size: 3.82 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 7: Loss: 5.2674, Accuracy: 73.60%, MACs: 9.50e+06, Size: 3.83 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 8: Loss: 5.2393, Accuracy: 75.40%, MACs: 9.55e+06, Size: 3.82 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 9: Loss: 5.2091, Accuracy: 76.90%, MACs: 9.51e+06, Size: 3.82 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
+INFO:root:Epoch 10: Loss: 5.1499, Accuracy: 78.55%, MACs: 9.54e+06, Size: 3.83 MB
+INFO:root:Network: Input → Conv1 → BN1 → ReLU → Block1 → Block2 → Block3 → Block4 → Block5 → Block6 → Block7 → Conv2 → BN2 → ReLU → AvgPool → FC → Output
