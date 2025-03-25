@@ -13,7 +13,7 @@ from torch import optim
 logging.basicConfig(filename='output/mobilenetv2_architecture.log', level=logging.INFO)
 logger = logging.getLogger()
 
-def calculate_block_contributions(model, input_size=(1, 3, 32, 32)):
+def calculate_block_contributions(model, input_size=(2, 3, 32, 32)):
     # Determine the device from the model's parameters
     device = next(model.parameters()).device
     
@@ -32,7 +32,7 @@ def calculate_block_contributions(model, input_size=(1, 3, 32, 32)):
     if hasattr(model, 'mask'):
         original_masks = model.mask.data.clone()
         model.mask.data.fill_(10.0)  # Assuming sigmoid(10) ≈ 1
-    
+
     # Process the input through the initial layers
     x = model.conv1(dummy_input)  # Transforms [1, 3, 32, 32] to [1, 32, 32, 32]
     x = model.bn1(x)
@@ -56,7 +56,7 @@ def calculate_block_contributions(model, input_size=(1, 3, 32, 32)):
         model.mask.data.copy_(original_masks)
     
     # Profile the fixed parts (initial and final layers)
-    fixed_parts = nn.Sequential(model.conv1, model.bn1, model.relu, 
+    fixed_parts = nn.Sequential(model.conv1, model.bn1, model.relu,
                                 model.conv2, model.bn2, model.avgpool, model.fc)
     macs_fixed, _ = profile(fixed_parts, inputs=(dummy_input,), verbose=False)
     params_fixed = sum(p.numel() for p in fixed_parts.parameters())
