@@ -41,7 +41,7 @@ def calculate_block_contributions(model, input_size=(2, 3, 32, 32)):
         x = block(x)  # Update the input for the next block
     
     # Profile final layers (conv2, bn2, avgpool, fc)
-    final_layers = nn.Sequential(model.conv2, model.bn2, model.avgpool, model.fc)
+    final_layers = nn.Sequential(model.conv2, model.bn2, model.avgpool, nn.Flatten(start_dim=1), model.fc)
     macs_final, _ = profile(final_layers, inputs=(x,), verbose=False)
     params_final = sum(p.numel() for p in final_layers.parameters())
     
@@ -69,7 +69,7 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
         classification_loss = criterion(outputs, labels)
 
         # Compute expected MACs and size
-        mask_weights = torch.sigmoid(model.mask)
+        mask_weights = torch.sigmoid(model.mask).detach().cpu()
         expected_macs = macs_fixed + sum(mask_weights[i] * macs_blocks[i] for i in range(7))
         expected_size = (params_fixed + sum(mask_weights[i] * params_blocks[i] for i in range(7))) * 4 / 1e6  # MB
 
@@ -77,9 +77,23 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
         macs_penalty = torch.relu(expected_macs - model.mac_threshold)
         size_penalty = torch.relu(expected_size - model.size_threshold)
 
+        macs_penalty = macs_penalty.to(device)
+        size_penalty = size_penalty.to(device)
+
+
+        #print(f"classification_loss device: {classification_loss.device}")
+
         # Total loss
         loss = classification_loss + lambda_macs * macs_penalty + lambda_size * size_penalty
         loss.backward()
+
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                print(f"{name}: grad device: {param.grad.device}")
+            else:
+                print(f"{name} has no gradient!")
+
+
         optimizer.step()
 
         running_loss += loss.item()
@@ -101,9 +115,19 @@ def main():
     mac_threshold = 5e6   # Example MACs threshold (adjust as needed)
     model = MobileNetV2(num_classes=10, size_threshold=size_threshold, 
                         mac_threshold=mac_threshold).to(device)
-    
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    criterion = nn.CrossEntropyLoss()
+
+    # for name, param in model.named_parameters():
+    #     print(f"name: {name}: {param.device}")
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    criterion = nn.CrossEntropyLoss().to(device)
+
+    # for group in optimizer.param_groups:
+    #     for p in group['params']:
+    #         state = optimizer.state[p]
+    #         if state:
+    #             print(f"Parameter {p.device}, exp_avg: {state['exp_avg'].device}")
+
 
     # Dummy train_loader (replace with actual data loader)
     from torch.utils.data import DataLoader, TensorDataset
