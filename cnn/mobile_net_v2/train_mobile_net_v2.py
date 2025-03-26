@@ -110,7 +110,8 @@ def main():
     
     # Initialize model with thresholds
     size_threshold = 5.0  # MB
-    mac_threshold = 5e6   # Example MACs threshold (adjust as needed)
+    mac_threshold = 11e+06   # Example MACs threshold (adjust as needed)
+    # todo: accuracy threshold should be implemented here
     model = MobileNetV2(num_classes=10, size_threshold=size_threshold, 
                         mac_threshold=mac_threshold).to(device)
 
@@ -152,11 +153,13 @@ def main():
         logging.info(f"Epoch {epoch+1}: Loss: {loss:.4f}, Accuracy: {acc:.2f}%, "
                      f"MACs: {current_macs:.2e}, Size: {current_size:.2f} MB")
         logging.info(f"Network: {model.get_network_description()}")
-        
+
+        # todo: implement stopping criteria here
+        # todo: currently stopped imidiately after the condition is met without any further training
         # Check if thresholds are met
         if current_macs <= mac_threshold and current_size <= size_threshold:
             logging.info("Thresholds satisfied!")
-            break
+            continue
     
     final_mask_weights = torch.sigmoid(model.mask)
     final_macs = macs_fixed + sum(final_mask_weights[i] * macs_blocks[i] for i in range(7))
