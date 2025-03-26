@@ -77,6 +77,7 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
         expected_size = (params_fixed + sum(mask_weights[i] * params_blocks[i] for i in range(7))) * 4 / 1e6  # MB
 
         # Penalties for exceeding thresholds
+        # todo: penalization, expected macs and size should be implemented here
         macs_penalty = torch.relu(expected_macs - model.mac_threshold)
         size_penalty = torch.relu(expected_size - model.size_threshold)
 
@@ -89,7 +90,7 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
         # Total loss
         loss = classification_loss + lambda_macs * macs_penalty + lambda_size * size_penalty
         loss.backward()
-
+        # todo: need some sort of gradient of the extra terms in the loss function, for the expected macs and size
 
 
         optimizer.step()
@@ -109,8 +110,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Initialize model with thresholds
-    size_threshold = 5.0  # MB
-    mac_threshold = 11e+06   # Example MACs threshold (adjust as needed)
+    size_threshold = 2.0  # MB
+    mac_threshold = 10000   # Example MACs threshold (adjust as needed)
     # todo: accuracy threshold should be implemented here
     model = MobileNetV2(num_classes=10, size_threshold=size_threshold, 
                         mac_threshold=mac_threshold).to(device)
@@ -139,7 +140,7 @@ def main():
     lambda_size = 1e-3  # Adjust based on scale of size
 
     # Training loop
-    num_epochs = 10
+    num_epochs = 20
     for epoch in range(num_epochs):
         loss, acc = train_with_constraints(model, train_loader, criterion, optimizer, device,
                                           lambda_macs, lambda_size, macs_blocks, params_blocks,
