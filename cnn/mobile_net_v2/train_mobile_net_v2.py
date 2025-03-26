@@ -90,6 +90,8 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
         loss = classification_loss + lambda_macs * macs_penalty + lambda_size * size_penalty
         loss.backward()
 
+
+
         optimizer.step()
 
         running_loss += loss.item()
@@ -107,8 +109,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Initialize model with thresholds
-    size_threshold = 500.0  # MB
-    mac_threshold = 99.49e+06   # Example MACs threshold (adjust as needed)
+    size_threshold = 5.0  # MB
+    mac_threshold = 5e6   # Example MACs threshold (adjust as needed)
     model = MobileNetV2(num_classes=10, size_threshold=size_threshold, 
                         mac_threshold=mac_threshold).to(device)
 
@@ -154,8 +156,14 @@ def main():
         # Check if thresholds are met
         if current_macs <= mac_threshold and current_size <= size_threshold:
             logging.info("Thresholds satisfied!")
-            continue
-
+            break
+    
+    final_mask_weights = torch.sigmoid(model.mask)
+    final_macs = macs_fixed + sum(final_mask_weights[i] * macs_blocks[i] for i in range(7))
+    final_size = (params_fixed + sum(final_mask_weights[i] * params_blocks[i] for i in range(7))) * 4 / 1e6
+    print(f"Final MACs: {final_macs:.2e}")
+    print(f"Final Size: {final_size:.2f} MB")
+    print(f"Final Architecture: {model.get_network_description()}")
 
 if __name__ == "__main__":
     main()
