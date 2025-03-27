@@ -77,7 +77,7 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
         expected_size = (params_fixed + sum(mask_weights[i] * params_blocks[i] for i in range(7))) * 4 / 1e6  # MB
 
         # Penalties for exceeding thresholds
-        # todo: penalization, expected macs and size should be implemented here
+
         macs_penalty = torch.relu(expected_macs - model.mac_threshold)
         size_penalty = torch.relu(expected_size - model.size_threshold)
 
@@ -90,7 +90,6 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
         # Total loss
         loss = classification_loss + lambda_macs * macs_penalty + lambda_size * size_penalty
         loss.backward()
-        # todo: need some sort of gradient of the extra terms in the loss function, for the expected macs and size
 
 
         optimizer.step()
@@ -113,8 +112,7 @@ def main():
     size_threshold = 2.0  # MB
     mac_threshold = 10000   # Example MACs threshold (adjust as needed)
     # todo: accuracy threshold should be implemented here
-    model = MobileNetV2(num_classes=10, size_threshold=size_threshold, 
-                        mac_threshold=mac_threshold).to(device)
+    model = MobileNetV2(num_classes=10, size_threshold=size_threshold, mac_threshold=mac_threshold).to(device)
 
     # for name, param in model.named_parameters():
     #     print(f"name: {name}: {param.device}")
@@ -139,12 +137,16 @@ def main():
     lambda_macs = 1e-4  # Adjust based on scale of MACs
     lambda_size = 1e-2  # Adjust based on scale of size
 
+    # Log initial architecture
+    print("Before Training Architecture:", model.get_network_description())
+    initial_macs = macs_fixed + sum(torch.sigmoid(model.mask[i]) * macs_blocks[i] for i in range(7))
+    initial_size = (params_fixed + sum(torch.sigmoid(model.mask[i]) * params_blocks[i] for i in range(7))) * 4 / 1e6
+    print(f"Initial MACs: {initial_macs:.2e}, Initial Size: {initial_size:.2f} MB")
+
     # Training loop
     num_epochs = 20
     for epoch in range(num_epochs):
-        loss, acc = train_with_constraints(model, train_loader, criterion, optimizer, device,
-                                          lambda_macs, lambda_size, macs_blocks, params_blocks,
-                                          macs_fixed, params_fixed)
+        loss, acc = train_with_constraints(model, train_loader, criterion, optimizer, device, lambda_macs, lambda_size, macs_blocks, params_blocks, macs_fixed, params_fixed)
         
         # Compute current MACs and size for logging
         mask_weights = torch.sigmoid(model.mask)
@@ -161,13 +163,13 @@ def main():
         if current_macs <= mac_threshold and current_size <= size_threshold:
             logging.info("Thresholds satisfied!")
             continue
-    
+
+    # Log final architecture
     final_mask_weights = torch.sigmoid(model.mask)
     final_macs = macs_fixed + sum(final_mask_weights[i] * macs_blocks[i] for i in range(7))
     final_size = (params_fixed + sum(final_mask_weights[i] * params_blocks[i] for i in range(7))) * 4 / 1e6
-    print(f"Final MACs: {final_macs:.2e}")
-    print(f"Final Size: {final_size:.2f} MB")
     print(f"Final Architecture: {model.get_network_description()}")
+    print(f"Final MACs: {final_macs:.2e}, Final Size: {final_size:.2f} MB")
 
 if __name__ == "__main__":
     main()
