@@ -72,7 +72,7 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
         classification_loss = criterion(outputs, labels)
 
         # Compute expected MACs and size
-        mask_weights = torch.sigmoid(model.mask).detach().cpu()
+        mask_weights = torch.sigmoid(model.mask)
         expected_macs = macs_fixed + sum(mask_weights[i] * macs_blocks[i] for i in range(7))
         expected_size = (params_fixed + sum(mask_weights[i] * params_blocks[i] for i in range(7))) * 4 / 1e6  # MB
 
@@ -136,8 +136,8 @@ def main():
     macs_blocks, params_blocks, macs_fixed, params_fixed = calculate_block_contributions(model)
     
     # Hyperparameters for penalties
-    lambda_macs = 1e-6  # Adjust based on scale of MACs
-    lambda_size = 1e-3  # Adjust based on scale of size
+    lambda_macs = 1e-4  # Adjust based on scale of MACs
+    lambda_size = 1e-2  # Adjust based on scale of size
 
     # Training loop
     num_epochs = 20
