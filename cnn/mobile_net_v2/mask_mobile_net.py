@@ -45,6 +45,16 @@ class MobileNetV2(nn.Module):
         # Adjust conv2 input channels to match last block's output
         if last_out_channels != 320:
             self.conv2 = nn.Conv2d(last_out_channels, 1280, kernel_size=1, stride=1, padding=0, bias=False).to(x.device)
+
+        """
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        x = self.block4(x)
+        x = self.block5(x)
+        x = self.block6(x)
+        x = self.block7(x)
+        """
         x = self.conv2(x)
         x = self.bn2(x)
         x = self.relu(x)

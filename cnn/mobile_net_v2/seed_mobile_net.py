@@ -39,6 +39,7 @@ class InvertedResidual(nn.Module):
         # Apply mask scaling (differentiable)
         if self.mask is not None and self.mask_index is not None:
             mask_value = torch.sigmoid(self.mask[self.mask_index])
+            # print(f"Mask value for block {self.mask_index} is {mask_value}")
             if self.use_res_connect:
                 return identity + mask_value * out
             else:

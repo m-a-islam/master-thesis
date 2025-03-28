@@ -1,6 +1,6 @@
 import torch, sys, os
 import torch.nn as nn
-import logging
+import logging, torch.onnx
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from mask_mobile_net import MobileNetV2
@@ -114,6 +114,10 @@ def main():
     # todo: accuracy threshold should be implemented here
     model = MobileNetV2(num_classes=10, size_threshold=size_threshold, mac_threshold=mac_threshold).to(device)
 
+
+    #torch.save(model.state_dict(), f"output/before_train_mobile_net_v2.pth")
+    #convert_to_onnx(model, f"output/onnx/before_train_mobile_net_v2.onnx")
+
     # for name, param in model.named_parameters():
     #     print(f"name: {name}: {param.device}")
 
@@ -164,6 +168,9 @@ def main():
             logging.info("Thresholds satisfied!")
             continue
 
+
+    torch.save(model.state_dict(), f"output/structural_prune_after_train_mobile_net_v2.pth")
+    #convert_to_onnx(model, f"output/onnx/after_train_mobile_net_v2.onnx")
     # Log final architecture
     final_mask_weights = torch.sigmoid(model.mask)
     final_macs = macs_fixed + sum(final_mask_weights[i] * macs_blocks[i] for i in range(7))
@@ -171,5 +178,96 @@ def main():
     print(f"Final Architecture: {model.get_network_description()}")
     print(f"Final MACs: {final_macs:.2e}, Final Size: {final_size:.2f} MB")
 
+    example_input = torch.randn(1, 3, 32, 32).to(device)
+    onnx_path = f"output/onnx/structural_prune_after_train_mobile_net_v2.onnx"
+
+    torch.onnx.export(
+        model,
+        example_input,
+        onnx_path,
+        export_params=True,
+        opset_version=12,
+        do_constant_folding=True,
+        input_names=['input'],
+        output_names=['output'],
+        dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}
+    )
+    print(f"✅ Model saved as ONNX to {onnx_path}")
+    model.eval()
+    with torch.no_grad():
+        output = model(example_input)
+        print(output.shape)
+
+
+def convert_to_onnx(model, output_path):
+    #dummy_input = torch.randn(1, 32, )  # cifar10 input shape
+    dummy_input = torch.randn(1, 3, 32, 32)
+    torch.onnx.export(
+        model,
+        dummy_input,
+        output_path,
+        export_params=True,
+        opset_version=11,
+        do_constant_folding=True,
+        input_names=['input'],
+        output_names=['output'],
+        dynamic_axes={
+            'input': {0: 'batch_size'},
+            'output': {0: 'batch_size'}
+        },
+        dynamo=True
+    )
+    print(f"✅ Model saved as ONNX to {output_path}")
+
+
+
+def load_model_and_convert_to_onnx(pth_path, onnx_path, input_size=(1, 3, 32, 32)):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Initialize the model architecture
+    model = MobileNetV2(num_classes=10).to(device)
+
+    # Load the saved state dictionary
+    state_dict = torch.load(pth_path, map_location=device)
+    #model.load_state_dict(state_dict)
+
+
+    # Filter out keys with "total_ops" and "total_params"
+    filtered_state_dict = {k: v for k, v in state_dict.items() if "total_ops" not in k and "total_params" not in k}
+
+    # Check for size mismatches and adjust the model if necessary
+    model_state_dict = model.state_dict()
+    for key in filtered_state_dict.keys():
+        if key in model_state_dict and filtered_state_dict[key].shape != model_state_dict[key].shape:
+            print(
+                f"Size mismatch for {key}: expected {model_state_dict[key].shape}, got {filtered_state_dict[key].shape}")
+            return
+
+    model.load_state_dict(filtered_state_dict)
+
+    # Set the model to evaluation mode
+    #model.to(device)
+    model.eval()
+
+    # Create a dummy input tensor
+    dummy_input = torch.randn(input_size).to(device)
+
+    # Convert the model to ONNX format
+    torch.onnx.export(
+        model,
+        dummy_input,
+        onnx_path,
+        export_params=True,
+        opset_version=11,
+        do_constant_folding=True,
+        input_names=['input'],
+        output_names=['output'],
+        dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}
+    )
+    print(f"✅ Model saved as ONNX to {onnx_path}")
+
+# Example usage
+
 if __name__ == "__main__":
     main()
+    #load_model_and_convert_to_onnx('output/structural_prune_after_train_mobile_net_v2.pth', 'output/onnx/structural_prune_after_train_mobile_net_v2.onnx')
