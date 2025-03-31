@@ -31,6 +31,7 @@ class MobileNetV2(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
 
+        """
         # Structural pruning: skip blocks with mask < 0.5
         blocks = [self.block1, self.block2, self.block3, self.block4, self.block5, self.block6, self.block7]
         last_out_channels = 32  # Output from conv1
@@ -54,7 +55,7 @@ class MobileNetV2(nn.Module):
         x = self.block5(x)
         x = self.block6(x)
         x = self.block7(x)
-        """
+
         x = self.conv2(x)
         x = self.bn2(x)
         x = self.relu(x)

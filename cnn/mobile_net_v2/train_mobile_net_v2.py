@@ -89,11 +89,12 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
 
         # Total loss
         loss = classification_loss + lambda_macs * macs_penalty + lambda_size * size_penalty
+        print(f"Before backward: mask = {model.mask.data}")
         loss.backward()
-
+        print(f"After backward: mask = {model.mask.data}")
 
         optimizer.step()
-
+        print(f"After optimizer step: mask = {model.mask.data}")
         running_loss += loss.item()
         _, predicted = torch.max(outputs, 1)
         total += labels.size(0)
@@ -178,6 +179,7 @@ def main():
     print(f"Final Architecture: {model.get_network_description()}")
     print(f"Final MACs: {final_macs:.2e}, Final Size: {final_size:.2f} MB")
 
+    """
     example_input = torch.randn(1, 3, 32, 32).to(device)
     onnx_path = f"output/onnx/structural_prune_after_train_mobile_net_v2.onnx"
 
@@ -197,7 +199,7 @@ def main():
     with torch.no_grad():
         output = model(example_input)
         print(output.shape)
-
+    """
 
 def convert_to_onnx(model, output_path):
     #dummy_input = torch.randn(1, 32, )  # cifar10 input shape
