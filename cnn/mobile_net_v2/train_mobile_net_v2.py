@@ -1,6 +1,7 @@
 import torch, sys, os
 import torch.nn as nn
 import logging, torch.onnx
+import matplotlib.pyplot as plt
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from mask_mobile_net import MobileNetV2
@@ -89,12 +90,12 @@ def train_with_constraints(model, train_loader, criterion, optimizer, device,
 
         # Total loss
         loss = classification_loss + lambda_macs * macs_penalty + lambda_size * size_penalty
-        print(f"Before backward: mask = {model.mask.data}")
+        #print(f"Before backward: mask = {model.mask.data}")
         loss.backward()
-        print(f"After backward: mask = {model.mask.data}")
+        #print(f"After backward: mask = {model.mask.data}")
 
         optimizer.step()
-        print(f"After optimizer step: mask = {model.mask.data}")
+        #print(f"After optimizer step: mask = {model.mask.data}")
         running_loss += loss.item()
         _, predicted = torch.max(outputs, 1)
         total += labels.size(0)
@@ -148,6 +149,12 @@ def main():
     initial_size = (params_fixed + sum(torch.sigmoid(model.mask[i]) * params_blocks[i] for i in range(7))) * 4 / 1e6
     print(f"Initial MACs: {initial_macs:.2e}, Initial Size: {initial_size:.2f} MB")
 
+    # Metric tracking lists
+    losses = []
+    accuracies = []
+    macs_list = []
+    sizes_list = []
+
     # Training loop
     num_epochs = 20
     for epoch in range(num_epochs):
@@ -157,7 +164,14 @@ def main():
         mask_weights = torch.sigmoid(model.mask)
         current_macs = macs_fixed + sum(mask_weights[i] * macs_blocks[i] for i in range(7))
         current_size = (params_fixed + sum(mask_weights[i] * params_blocks[i] for i in range(7))) * 4 / 1e6
-        
+
+        # Store metrics
+        # Append metrics, ensuring they are CPU scalars
+        losses.append(loss.item() if isinstance(loss, torch.Tensor) else loss)
+        accuracies.append(acc.item() if isinstance(acc, torch.Tensor) else acc)
+        macs_list.append(current_macs.cpu().item() if isinstance(current_macs, torch.Tensor) else current_macs)
+        sizes_list.append(current_size.cpu().item() if isinstance(current_size, torch.Tensor) else current_size)
+
         logging.info(f"Epoch {epoch+1}: Loss: {loss:.4f}, Accuracy: {acc:.2f}%, "
                      f"MACs: {current_macs:.2e}, Size: {current_size:.2f} MB")
         logging.info(f"Network: {model.get_network_description()}")
@@ -178,7 +192,8 @@ def main():
     final_size = (params_fixed + sum(final_mask_weights[i] * params_blocks[i] for i in range(7))) * 4 / 1e6
     print(f"Final Architecture: {model.get_network_description()}")
     print(f"Final MACs: {final_macs:.2e}, Final Size: {final_size:.2f} MB")
-
+    # Plot the metrics
+    plot_metrics(len(losses), losses, accuracies, macs_list, sizes_list)
     """
     example_input = torch.randn(1, 3, 32, 32).to(device)
     onnx_path = f"output/onnx/structural_prune_after_train_mobile_net_v2.onnx"
@@ -200,6 +215,40 @@ def main():
         output = model(example_input)
         print(output.shape)
     """
+
+
+# Plotting function
+def plot_metrics(epochs, losses, accuracies, macs_list, sizes_list):
+    fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+
+    axs[0, 0].plot(range(1, epochs + 1), losses, label='Loss')
+    axs[0, 0].set_title('Training Loss')
+    axs[0, 0].set_xlabel('Epoch')
+    axs[0, 0].set_ylabel('Loss')
+    axs[0, 0].legend()
+
+    axs[0, 1].plot(range(1, epochs + 1), accuracies, label='Accuracy', color='orange')
+    axs[0, 1].set_title('Training Accuracy')
+    axs[0, 1].set_xlabel('Epoch')
+    axs[0, 1].set_ylabel('Accuracy (%)')
+    axs[0, 1].legend()
+
+    axs[1, 0].plot(range(1, epochs + 1), macs_list, label='MACs', color='green')
+    axs[1, 0].set_title('Model MACs')
+    axs[1, 0].set_xlabel('Epoch')
+    axs[1, 0].set_ylabel('MACs')
+    axs[1, 0].legend()
+
+    axs[1, 1].plot(range(1, epochs + 1), sizes_list, label='Size', color='red')
+    axs[1, 1].set_title('Model Size (MB)')
+    axs[1, 1].set_xlabel('Epoch')
+    axs[1, 1].set_ylabel('Size (MB)')
+    axs[1, 1].legend()
+
+    plt.tight_layout()
+    plt.savefig('output/mobile_net_soft_pruning_metrices.png')
+    plt.show()
+
 
 def convert_to_onnx(model, output_path):
     #dummy_input = torch.randn(1, 32, )  # cifar10 input shape
