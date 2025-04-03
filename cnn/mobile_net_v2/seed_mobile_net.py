@@ -17,8 +17,8 @@ class InvertedResidual(nn.Module):
         self.relu = nn.ReLU6(inplace=True)
 
         # Depthwise convolution
-        self.conv2 = nn.Conv2d(in_channels * expansion, in_channels * expansion, kernel_size=3, 
-                              stride=stride, padding=1, groups=in_channels * expansion, bias=False)
+        self.conv2 = nn.Conv2d(in_channels * expansion, in_channels * expansion, kernel_size=3,
+                               stride=stride, padding=1, groups=in_channels * expansion, bias=False)
         self.bn2 = nn.BatchNorm2d(in_channels * expansion)
 
         # Pointwise convolution
