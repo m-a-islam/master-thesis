@@ -246,7 +246,7 @@ def plot_metrics(epochs, losses, accuracies, macs_list, sizes_list):
     axs[1, 1].legend()
 
     plt.tight_layout()
-    plt.savefig('output/mobile_net_soft_pruning_metrices.png')
+    plt.savefig('output/mobile_net_hard_pruning_metrices.png')
     plt.show()
 
 
