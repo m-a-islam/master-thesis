@@ -8,6 +8,7 @@ __pycache__
 __pycache__/
 #/cnn/mnist_darts_checkpoint.pth
 
+*.csv
 *.pth
 *.onnx
 /mnist_darts_checkpoint-nasnet.pth
