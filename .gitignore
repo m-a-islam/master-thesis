@@ -11,6 +11,8 @@ __pycache__/
 *.csv
 *.pth
 *.onnx
+*.txt
+*.pdf
 /mnist_darts_checkpoint-nasnet.pth
 /mnist_darts_checkpoint-alt.pth
 /data
