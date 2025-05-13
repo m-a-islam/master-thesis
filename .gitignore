@@ -13,6 +13,7 @@ __pycache__/
 *.onnx
 *.txt
 *.pdf
+*.pkl
 /mnist_darts_checkpoint-nasnet.pth
 /mnist_darts_checkpoint-alt.pth
 /data
