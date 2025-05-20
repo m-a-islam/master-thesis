@@ -15,7 +15,7 @@ matplotlib.use('Agg')
 def get_device():
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def get_data_loaders(data_dir, batch_size=64):
+def get_data_loaders(data_dir, batch_size=64, val_split=0.1):
     abs_data_dir = os.path.abspath(data_dir)
     print(f"Using dataset directory: {abs_data_dir}")
     transform = transforms.Compose([
@@ -23,12 +23,16 @@ def get_data_loaders(data_dir, batch_size=64):
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
 
-    train_dataset = torchvision.datasets.CIFAR10(
+    full_train_dataset = torchvision.datasets.CIFAR10(
         root=data_dir,
         train=True,
         download=False,
         transform=transform
     )
+
+    val_size = int(len(full_train_dataset) * val_split)
+    train_size = len(full_train_dataset) - val_size
+    train_dataset, val_dataset = torch.utils.data.random_split(full_train_dataset, [train_size, val_size])
 
     test_dataset = torchvision.datasets.CIFAR10(
         root=data_dir,
@@ -38,9 +42,10 @@ def get_data_loaders(data_dir, batch_size=64):
     )
 
     train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
 
-    return train_loader, test_loader
+    return train_loader, val_loader, test_loader
 
 def train_model(model, train_loader, test_loader, device, epochs=5):
     criterion = nn.CrossEntropyLoss()
